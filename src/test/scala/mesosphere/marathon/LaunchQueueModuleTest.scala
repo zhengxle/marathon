@@ -271,7 +271,6 @@ class LaunchQueueModuleTest extends AkkaUnitTest with OfferMatcherSpec {
       AlwaysElectedLeadershipModule.forRefFactory(parentActor.underlying),
       clock,
       subOfferMatcherManager = offerMatcherManager,
-      maybeOfferReviver = None,
       instanceTracker,
       instanceOpFactory
     )

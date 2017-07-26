@@ -6,7 +6,6 @@ import akka.pattern.ask
 import akka.testkit.TestProbe
 import mesosphere.AkkaUnitTest
 import mesosphere.marathon.test.SettableClock
-import mesosphere.marathon.core.flow.OfferReviver
 import mesosphere.marathon.core.instance.TestInstanceBuilder._
 import mesosphere.marathon.core.instance.update.InstanceChange
 import mesosphere.marathon.core.instance.{ Instance, TestInstanceBuilder }
@@ -69,7 +68,6 @@ class TaskLauncherActorTest extends AkkaUnitTest {
       clock: SettableClock = new SettableClock(),
       instanceOpFactory: InstanceOpFactory = mock[InstanceOpFactory],
       instanceTracker: InstanceTracker = mock[InstanceTracker],
-      offerReviver: OfferReviver = mock[OfferReviver],
       rateLimiterActor: TestProbe = TestProbe(),
       offerMatchStatisticsActor: TestProbe = TestProbe()) {
 
@@ -77,7 +75,6 @@ class TaskLauncherActorTest extends AkkaUnitTest {
       val props = TaskLauncherActor.props(
         launchQueueConfig,
         offerMatcherManager, clock, instanceOpFactory,
-        maybeOfferReviver = Some(offerReviver),
         instanceTracker, rateLimiterActor.ref, offerMatchStatisticsActor.ref) _
       system.actorOf(props(appToLaunch, instances))
     }
@@ -292,7 +289,6 @@ class TaskLauncherActorTest extends AkkaUnitTest {
         new TaskLauncherActor(
           launchQueueConfig,
           offerMatcherManager, clock, instanceOpFactory,
-          maybeOfferReviver = None,
           instanceTracker, rateLimiterActor.ref, offerMatchStatisticsActor.ref,
           f.app, instancesToLaunch = 1
         ) {
@@ -471,9 +467,6 @@ class TaskLauncherActorTest extends AkkaUnitTest {
 
         When("we get a status update about a terminated task")
         val counts = sendUpdate(launcherRef, update.wrapped)
-
-        Then("reviveOffers has been called")
-        Mockito.verify(offerReviver).reviveOffers()
 
         And("the task tracker as well")
         Mockito.verify(instanceTracker).instancesBySpecSync

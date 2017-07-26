@@ -2,7 +2,7 @@ package mesosphere.marathon
 
 import mesosphere.marathon.core.deployment.DeploymentConfig
 import mesosphere.marathon.core.event.EventConf
-import mesosphere.marathon.core.flow.{ LaunchTokenConfig, ReviveOffersConfig }
+import mesosphere.marathon.core.flow.LaunchTokenConfig
 import mesosphere.marathon.core.group.GroupManagerConfig
 import mesosphere.marathon.core.heartbeat.MesosHeartbeatMonitor
 import mesosphere.marathon.core.launcher.OfferProcessorConfig
@@ -33,7 +33,7 @@ trait MarathonConf
     extends ScallopConf
     with EventConf with NetworkConf with GroupManagerConfig with LaunchQueueConfig with LaunchTokenConfig
     with LeaderProxyConf with MarathonSchedulerServiceConfig with OfferMatcherManagerConfig with OfferProcessorConfig
-    with PluginManagerConfiguration with ReviveOffersConfig with StorageConf with KillConfig
+    with PluginManagerConfiguration with StorageConf with KillConfig
     with TaskJobsConfig with TaskStatusUpdateConfig with InstanceTrackerConfig with DeploymentConfig with ZookeeperConf {
 
   lazy val mesosMaster = opt[String](

@@ -7,9 +7,8 @@ import akka.testkit.{ TestActorRef, TestProbe }
 import mesosphere.AkkaUnitTest
 import mesosphere.marathon.test.SettableClock
 import mesosphere.marathon.core.event.DeploymentStepSuccess
-import mesosphere.marathon.core.flow.ReviveOffersConfig
 import mesosphere.marathon.state.{ AppDefinition, PathId, Residency }
-import mesosphere.marathon.test.{ GroupCreation, MarathonTestHelper }
+import mesosphere.marathon.test.GroupCreation
 import mesosphere.marathon.core.deployment.DeploymentPlan
 import rx.lang.scala.Subject
 import rx.lang.scala.subjects.PublishSubject
@@ -82,7 +81,6 @@ class OffersWantedForReconciliationActorTest extends AkkaUnitTest with GroupCrea
     }
   }
   class Fixture {
-    lazy val reviveOffersConfig: ReviveOffersConfig = MarathonTestHelper.defaultConfig()
     lazy val clock: SettableClock = new SettableClock()
     lazy val eventStream: EventStream = system.eventStream
     lazy val offersWanted: Subject[Boolean] = PublishSubject()
@@ -103,7 +101,6 @@ class OffersWantedForReconciliationActorTest extends AkkaUnitTest with GroupCrea
     }
 
     lazy val actorInstance = new OffersWantedForReconciliationActor(
-      reviveOffersConfig,
       clock,
       eventStream,
       offersWanted

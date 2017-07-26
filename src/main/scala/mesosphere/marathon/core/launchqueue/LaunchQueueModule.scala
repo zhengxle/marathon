@@ -4,7 +4,6 @@ package core.launchqueue
 import java.time.Clock
 
 import akka.actor.{ ActorRef, Props }
-import mesosphere.marathon.core.flow.OfferReviver
 import mesosphere.marathon.core.launcher.InstanceOpFactory
 import mesosphere.marathon.core.launchqueue.impl._
 import mesosphere.marathon.core.leadership.LeadershipModule
@@ -20,7 +19,6 @@ class LaunchQueueModule(
     leadershipModule: LeadershipModule,
     clock: Clock,
     subOfferMatcherManager: OfferMatcherManager,
-    maybeOfferReviver: Option[OfferReviver],
     taskTracker: InstanceTracker,
     taskOpFactory: InstanceOpFactory) {
 
@@ -35,7 +33,6 @@ class LaunchQueueModule(
         subOfferMatcherManager,
         clock,
         taskOpFactory,
-        maybeOfferReviver,
         taskTracker,
         rateLimiterActor,
         offerMatchStatisticsActor)(runSpec, count)

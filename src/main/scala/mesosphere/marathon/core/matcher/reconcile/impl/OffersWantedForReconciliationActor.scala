@@ -6,7 +6,6 @@ import java.time.Clock
 import akka.actor.{ Actor, Cancellable, Props }
 import akka.event.{ EventStream, LoggingReceive }
 import com.typesafe.scalalogging.StrictLogging
-import mesosphere.marathon.core.flow.ReviveOffersConfig
 import mesosphere.marathon.core.event.DeploymentStepSuccess
 import mesosphere.marathon.state.Timestamp
 import mesosphere.marathon.core.deployment.StopApplication
@@ -22,12 +21,10 @@ import scala.concurrent.duration._
   */
 private[reconcile] object OffersWantedForReconciliationActor {
   def props(
-    reviveOffersConfig: ReviveOffersConfig,
     clock: Clock,
     eventStream: EventStream,
     offersWanted: Observer[Boolean]): Props =
     Props(new OffersWantedForReconciliationActor(
-      reviveOffersConfig,
       clock, eventStream,
       offersWanted
     ))
@@ -37,21 +34,20 @@ private[reconcile] object OffersWantedForReconciliationActor {
 }
 
 private[reconcile] class OffersWantedForReconciliationActor(
-    reviveOffersConfig: ReviveOffersConfig,
     clock: Clock,
     eventStream: EventStream,
     offersWanted: Observer[Boolean]) extends Actor with StrictLogging {
 
+  // FIXME ju
   /** Make certain that the normal number of revives that the user specified will be executed. */
-  private[this] val interestDuration =
-    (reviveOffersConfig.minReviveOffersInterval() * (reviveOffersConfig.reviveOffersRepetitions() + 0.5)).millis
+  private[this] val interestDuration = 15000.millis
 
   override def preStart(): Unit = {
     super.preStart()
 
     eventStream.subscribe(self, classOf[DeploymentStepSuccess])
 
-    logger.info(s"Started. Will remain interested in offer reconciliation for $interestDuration when needed.")
+    logger.info("Started.")
     self ! OffersWantedForReconciliationActor.RequestOffers("becoming leader")
   }
 

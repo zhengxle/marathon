@@ -4,7 +4,6 @@ package core.matcher.reconcile
 import java.time.Clock
 
 import akka.event.EventStream
-import mesosphere.marathon.core.flow.ReviveOffersConfig
 import mesosphere.marathon.core.leadership.LeadershipModule
 import mesosphere.marathon.core.matcher.base.OfferMatcher
 import mesosphere.marathon.core.matcher.reconcile.impl.{ OfferMatcherReconciler, OffersWantedForReconciliationActor }
@@ -14,7 +13,6 @@ import rx.lang.scala.subjects.BehaviorSubject
 import rx.lang.scala.{ Observable, Observer, Subject }
 
 class OfferMatcherReconciliationModule(
-    reviveOffersConfig: ReviveOffersConfig,
     clock: Clock,
     marathonEventStream: EventStream,
     instanceTracker: InstanceTracker,
@@ -33,7 +31,6 @@ class OfferMatcherReconciliationModule(
 
   private[this] lazy val offersWantedForReconciliationActor = leadershipModule.startWhenLeader(
     OffersWantedForReconciliationActor.props(
-      reviveOffersConfig,
       clock,
       marathonEventStream,
       offersWantedObserver
