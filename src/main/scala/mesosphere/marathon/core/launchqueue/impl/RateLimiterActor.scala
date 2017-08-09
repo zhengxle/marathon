@@ -9,7 +9,7 @@ import mesosphere.marathon.state.{ RunSpec, Timestamp }
 
 import scala.concurrent.duration._
 
-private[launchqueue] object RateLimiterActor {
+object RateLimiterActor {
   def props(
     rateLimiter: RateLimiter,
     launchQueueRef: ActorRef): Props =

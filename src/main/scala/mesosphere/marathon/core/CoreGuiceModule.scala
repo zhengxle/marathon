@@ -8,6 +8,7 @@ import akka.stream.Materializer
 import com.google.inject._
 import com.google.inject.name.Names
 import com.typesafe.config.Config
+import mesosphere.marathon.core.actions.ActionManager
 import mesosphere.marathon.core.appinfo.{ AppInfoModule, AppInfoService, GroupInfoService, PodStatusService }
 import mesosphere.marathon.core.async.ExecutionContexts
 import mesosphere.marathon.core.base.Clock
@@ -91,6 +92,9 @@ class CoreGuiceModule(config: Config) extends AbstractModule {
 
   @Provides @Singleton
   final def launchQueue(coreModule: CoreModule): LaunchQueue = coreModule.appOfferMatcherModule.launchQueue
+
+  @Provides @Singleton
+  final def actionManager(coreModule: CoreModule): ActionManager = coreModule.actionManagerModule.actionManager
 
   @Provides @Singleton
   final def podStatusService(appInfoModule: AppInfoModule): PodStatusService = appInfoModule.podStatusService

@@ -6,6 +6,7 @@ import javax.inject.Named
 import akka.actor.ActorSystem
 import akka.event.EventStream
 import com.google.inject.{ Inject, Provider }
+import mesosphere.marathon.core.actions.impl.ActionManagerModule
 import mesosphere.marathon.core.async.ExecutionContexts
 import mesosphere.marathon.core.auth.AuthModule
 import mesosphere.marathon.core.base.{ ActorsModule, Clock, LifecycleState }
@@ -34,6 +35,7 @@ import mesosphere.marathon.core.task.tracker.InstanceTrackerModule
 import mesosphere.marathon.core.task.update.TaskStatusUpdateProcessor
 import mesosphere.marathon.storage.StorageModule
 
+import scala.concurrent.ExecutionContext
 import scala.util.Random
 
 /**
@@ -53,7 +55,7 @@ class CoreModuleImpl @Inject() (
   scheduler: Provider[DeploymentService],
   instanceUpdateSteps: Seq[InstanceChangeHandler],
   taskStatusUpdateProcessor: TaskStatusUpdateProcessor
-)
+)(implicit ec: ExecutionContext)
     extends CoreModule {
 
   // INFRASTRUCTURE LAYER
@@ -198,6 +200,23 @@ class CoreModuleImpl @Inject() (
   // PODS
 
   override lazy val podModule: PodModule = PodModule(groupManagerModule.groupManager)
+
+  // ACTION MANAGER
+
+  override val actionManagerModule: ActionManagerModule = new ActionManagerModule(
+    marathonConf,
+    groupManagerModule.groupManager,
+    leadershipModule, clock,
+
+    // internal core dependencies
+    offerMatcherManagerModule.subOfferMatcherManager,
+    maybeOfferReviver,
+
+    // external guice dependencies
+    taskTrackerModule.instanceTracker,
+    launcherModule.taskOpFactory,
+    taskTerminationModule.taskKillService
+  )
 
   // DEPLOYMENT MANAGER
 

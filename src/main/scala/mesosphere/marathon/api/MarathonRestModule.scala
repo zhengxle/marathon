@@ -46,6 +46,7 @@ class MarathonRestModule extends ServletModule {
 
     // V2 API
     bind(classOf[v2.AppsResource]).in(Scopes.SINGLETON)
+    bind(classOf[v2.ActionsResource]).in(Scopes.SINGLETON)
     bind(classOf[v2.PodsResource]).in(Scopes.SINGLETON)
     bind(classOf[v2.TasksResource]).in(Scopes.SINGLETON)
     bind(classOf[v2.QueueResource]).in(Scopes.SINGLETON)

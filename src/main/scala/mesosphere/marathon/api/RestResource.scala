@@ -107,6 +107,7 @@ trait RestResource {
 
 object RestResource {
   val DeploymentHeader = "Marathon-Deployment-Id"
+  val ActionHeader = "Marathon-Action-Id"
 
   def entity(err: scala.collection.Seq[(JsPath, scala.collection.Seq[ValidationError])]): JsValue = {
     val errors = err.map {

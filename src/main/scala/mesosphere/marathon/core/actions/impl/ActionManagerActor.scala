@@ -4,7 +4,7 @@ package core.actions.impl
 import java.util.UUID
 
 import akka.actor.{ Actor, ActorLogging, ActorRef, Props }
-import mesosphere.marathon.core.actions.impl.ActionManagerActor.{ ActionHandlerResult, AddAction, Result }
+import mesosphere.marathon.core.actions.impl.ActionManagerActor.{ ActionHandlerResult, Result }
 import mesosphere.marathon.core.actions.{ Action, ActionStatus, InstanceAction }
 import mesosphere.marathon.core.actions.impl.ImmediateDispatcherActor.DestroyInstance
 import mesosphere.marathon.core.actions.impl.RunSpecLauncherActor.AddInstance
@@ -32,8 +32,6 @@ class ActionManagerActor(
     clock: Clock,
     taskOpFactory: InstanceOpFactory,
     maybeOfferReviver: Option[OfferReviver],
-    rateLimiterActor: ActorRef,
-    offerMatchStatisticsActor: ActorRef,
     killService: KillService)(implicit ec: ExecutionContext) extends Actor with ActorLogging {
   val runSpecLauncherActor: ActorRef = context.actorOf(RunSpecLauncherActor.props(
     config,
@@ -41,17 +39,22 @@ class ActionManagerActor(
     clock,
     taskOpFactory,
     maybeOfferReviver,
-    instanceTracker,
-    rateLimiterActor,
-    offerMatchStatisticsActor
-  ), name = "offermatcher")
+    instanceTracker
+  ), name = "actionmanager")
   val immediateDispatcherActor: ActorRef = context.actorOf(ImmediateDispatcherActor.props(killService), name = "dispatcher")
 
   val runningActions: mutable.Queue[Action] = mutable.Queue.empty
-  var instanceActionMap: Map[Instance.Id, InstanceAction] = _
+  var instanceActionMap: Map[Instance.Id, InstanceAction] = Map.empty
+
+  override def preStart(): Unit = {
+    super.preStart()
+    log.info("Started actionManagerActor")
+  }
 
   override def receive: Receive = {
-    case AddAction(action) => addAction(action).foreach(sender ! _)
+    case ActionManagerDelegate.Add(action) =>
+      val actualSender = sender()
+      addAction(action).foreach(actualSender ! _)
     case change: InstanceChange => receiveInstanceChange(change)
     case RunSpecLauncherActor.InstanceCreated(instanceId, actionId) => trackInstanceCreation(instanceId, actionId)
   }
@@ -79,6 +82,7 @@ class ActionManagerActor(
   }
 
   def addAction(action: Action): Future[ActionHandlerResult] = {
+    log.info(s"Adding action: $action")
     runningActions.enqueue(action)
 
     action match {
@@ -108,8 +112,7 @@ class ActionManagerActor(
         instanceActionMap += action.instanceId -> action
         immediateDispatcherActor ! DestroyInstance(instance, action.killReason)
         Result.Success()
-      case None =>
-        Result.InstanceNotFound(action.instanceId)
+      case None => Result.InstanceNotFound(action.instanceId)
     })
   }
 }
@@ -123,8 +126,6 @@ object ActionManagerActor {
     clock: Clock,
     taskOpFactory: InstanceOpFactory,
     maybeOfferReviver: Option[OfferReviver],
-    rateLimiterActor: ActorRef,
-    offerMatchStatisticsActor: ActorRef,
     killService: KillService
   )(implicit ec: ExecutionContext): Props = Props(new ActionManagerActor(
     groupManager,
@@ -134,12 +135,8 @@ object ActionManagerActor {
     clock,
     taskOpFactory,
     maybeOfferReviver,
-    rateLimiterActor,
-    offerMatchStatisticsActor,
     killService
   ))
-
-  case class AddAction(action: Action)
 
   trait ActionHandlerResult {}
   object Result {

@@ -33,16 +33,14 @@ private[actions] object RunSpecLauncherActor {
     clock: Clock,
     taskOpFactory: InstanceOpFactory,
     maybeOfferReviver: Option[OfferReviver],
-    instanceTracker: InstanceTracker,
-    rateLimiterActor: ActorRef,
-    offerMatchStatisticsActor: ActorRef
+    instanceTracker: InstanceTracker
   ): Props = {
     Props(new RunSpecLauncherActor(
       config,
       offerMatcherManager,
       clock, taskOpFactory,
       maybeOfferReviver,
-      instanceTracker, rateLimiterActor, offerMatchStatisticsActor))
+      instanceTracker))
   }
 
   sealed trait Requests
@@ -69,9 +67,7 @@ private class RunSpecLauncherActor(
     clock: Clock,
     instanceOpFactory: InstanceOpFactory,
     maybeOfferReviver: Option[OfferReviver],
-    instanceTracker: InstanceTracker,
-    rateLimiterActor: ActorRef,
-    offerMatchStatisticsActor: ActorRef
+    instanceTracker: InstanceTracker
 ) extends Actor with StrictLogging with Stash {
   // scalastyle:on parameter.number
 
@@ -80,11 +76,11 @@ private class RunSpecLauncherActor(
   private[this] var inFlightLaunches = Map.empty[Instance.Id, Launch]
 
   /** instances that are in flight and those in the tracker */
-  private[this] var instanceMap: Map[Instance.Id, Instance] = _
+  private[this] var instanceMap: Map[Instance.Id, Instance] = Map.empty
 
   private[this] val remainingLaunches: mutable.Queue[Launch] = mutable.Queue.empty
 
-  private[this] var launchingRunSpecs: Map[PathId, RunSpec] = _
+  private[this] var launchingRunSpecs: Map[PathId, RunSpec] = Map.empty
 
   /** Decorator to use this actor as a [[OfferMatcher#TaskOpSource]] */
   private[this] val myselfAsLaunchSource = InstanceOpSourceDelegate(self)
@@ -94,7 +90,7 @@ private class RunSpecLauncherActor(
   override def preStart(): Unit = {
     super.preStart()
 
-    logger.info(s"Started offerMatcherActor")
+    logger.info("Started runSpecLauncherActor")
 
     // TODO (Keno): how to initialize instanceMap?
     // TODO (Keno): do something about the rate limiter
@@ -226,11 +222,9 @@ private class RunSpecLauncherActor(
               val matchRequest = InstanceOpFactory.Request(runSpec, offer, reachableInstances, additionalLaunches = 1)
               instanceOpFactory.matchOfferRequest(matchRequest) match {
                 case matched: OfferMatchResult.Match =>
-                  offerMatchStatisticsActor ! matched
                   inFlightLaunches += matched.instanceOp.instanceId -> launch
                   Some(matched)
                 case notMatched: OfferMatchResult.NoMatch =>
-                  offerMatchStatisticsActor ! notMatched
                   None
               }
             case None =>
@@ -340,11 +334,11 @@ private class RunSpecLauncherActor(
       val shouldBeRegistered = shouldLaunchInstances
 
       if (shouldBeRegistered && !registeredAsMatcher) {
-        logger.debug(s"Registering deployment offer matcher")
+        logger.debug("Registering deployment offer matcher")
         offerMatcherManager.addSubscription(myselfAsOfferMatcher)(context.dispatcher)
         registeredAsMatcher = true
       } else if (!shouldBeRegistered && registeredAsMatcher) {
-        logger.info(s"No tasks left to launch. Stop receiving offers deployment offer matcher")
+        logger.info("No tasks left to launch. Stop receiving offers deployment offer matcher")
         offerMatcherManager.removeSubscription(myselfAsOfferMatcher)(context.dispatcher)
         registeredAsMatcher = false
       }

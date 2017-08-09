@@ -15,7 +15,7 @@ import scala.concurrent.duration._
   *
   * We do not keep the delays for every version because that would include scaling changes or manual restarts.
   */
-private[launchqueue] class RateLimiter(config: LaunchQueueConfig, clock: Clock) {
+class RateLimiter(config: LaunchQueueConfig, clock: Clock) {
   import RateLimiter._
 
   /** The task launch delays per run spec and their last config change. */

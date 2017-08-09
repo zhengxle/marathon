@@ -2,6 +2,7 @@ package mesosphere.marathon
 package core
 
 import mesosphere.marathon.SchedulerActions
+import mesosphere.marathon.core.actions.impl.ActionManagerModule
 import mesosphere.marathon.core.auth.AuthModule
 import mesosphere.marathon.core.base.ActorsModule
 import mesosphere.marathon.core.deployment.DeploymentModule
@@ -41,6 +42,7 @@ trait CoreModule {
   def leadershipModule: LeadershipModule
   def pluginModule: PluginModule
   def podModule: PodModule
+  def actionManagerModule: ActionManagerModule
   def readinessModule: ReadinessModule
   def storageModule: StorageModule
   def taskBusModule: TaskBusModule
