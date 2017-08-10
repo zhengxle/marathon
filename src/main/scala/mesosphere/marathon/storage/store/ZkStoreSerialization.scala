@@ -7,7 +7,7 @@ import java.time.OffsetDateTime
 import akka.http.scaladsl.marshalling.Marshaller
 import akka.http.scaladsl.unmarshalling.Unmarshaller
 import akka.util.ByteString
-import mesosphere.marathon.Protos.{ DeploymentPlanDefinition, MarathonTask, ServiceDefinition }
+import mesosphere.marathon.Protos.{ MarathonTask, ServiceDefinition }
 import mesosphere.marathon.core.instance.Instance
 import mesosphere.marathon.core.instance.Instance.Id
 import mesosphere.marathon.core.pod.PodDefinition
@@ -17,7 +17,7 @@ import mesosphere.marathon.core.task.Task
 import mesosphere.marathon.core.task.tracker.impl.TaskSerializer
 import mesosphere.marathon.raml.{ Pod, Raml }
 import mesosphere.marathon.state.{ AppDefinition, PathId, TaskFailure }
-import mesosphere.marathon.storage.repository.{ StoredGroup, StoredGroupRepositoryImpl, StoredPlan }
+import mesosphere.marathon.storage.repository.{ StoredGroup, StoredGroupRepositoryImpl }
 import mesosphere.util.state.FrameworkId
 import mesosphere.marathon.raml.RuntimeConfiguration
 import play.api.libs.json.Json
@@ -100,25 +100,6 @@ trait ZkStoreSerialization {
     Unmarshaller.strict {
       case ZkSerialized(byteString) =>
         TaskSerializer.fromProto(MarathonTask.parseFrom(byteString.toArray))
-    }
-
-  implicit val deploymentResolver: IdResolver[String, StoredPlan, String, ZkId] =
-    new IdResolver[String, StoredPlan, String, ZkId] {
-      override def toStorageId(id: String, version: Option[OffsetDateTime]): ZkId =
-        ZkId(category, id, version)
-      override val category: String = "deployment"
-      override def fromStorageId(key: ZkId): String = key.id
-      override val hasVersions = false
-      override def version(v: StoredPlan): OffsetDateTime = OffsetDateTime.MIN
-    }
-
-  implicit val deploymentMarshaller: Marshaller[StoredPlan, ZkSerialized] =
-    Marshaller.opaque(plan => ZkSerialized(ByteString(plan.toProto.toByteArray)))
-
-  implicit val deploymentUnmarshaller: Unmarshaller[ZkSerialized, StoredPlan] =
-    Unmarshaller.strict {
-      case ZkSerialized(byteString) =>
-        StoredPlan(DeploymentPlanDefinition.parseFrom(byteString.toArray))
     }
 
   implicit val taskFailureResolver: IdResolver[PathId, TaskFailure, String, ZkId] =

@@ -5,12 +5,11 @@ import javax.inject.Named
 
 import akka.actor.ActorSystem
 import akka.event.EventStream
-import com.google.inject.{ Inject, Provider }
+import com.google.inject.Inject
 import mesosphere.marathon.core.actions.impl.ActionManagerModule
 import mesosphere.marathon.core.async.ExecutionContexts
 import mesosphere.marathon.core.auth.AuthModule
 import mesosphere.marathon.core.base.{ ActorsModule, Clock, LifecycleState }
-import mesosphere.marathon.core.deployment.DeploymentModule
 import mesosphere.marathon.core.election._
 import mesosphere.marathon.core.event.EventModule
 import mesosphere.marathon.core.flow.FlowModule
@@ -52,7 +51,6 @@ class CoreModuleImpl @Inject() (
   actorSystem: ActorSystem,
   marathonSchedulerDriverHolder: MarathonSchedulerDriverHolder,
   clock: Clock,
-  scheduler: Provider[DeploymentService],
   instanceUpdateSteps: Seq[InstanceChangeHandler],
   taskStatusUpdateProcessor: TaskStatusUpdateProcessor
 )(implicit ec: ExecutionContext)
@@ -194,7 +192,6 @@ class CoreModuleImpl @Inject() (
 
   override lazy val groupManagerModule: GroupManagerModule = new GroupManagerModule(
     marathonConf,
-    scheduler,
     storageModule.groupRepository)(ExecutionContexts.global, eventStream)
 
   // PODS
@@ -217,21 +214,6 @@ class CoreModuleImpl @Inject() (
     launcherModule.taskOpFactory,
     taskTerminationModule.taskKillService
   )
-
-  // DEPLOYMENT MANAGER
-
-  override lazy val deploymentModule: DeploymentModule = new DeploymentModule(
-    marathonConf,
-    leadershipModule,
-    taskTrackerModule.instanceTracker,
-    taskTerminationModule.taskKillService,
-    appOfferMatcherModule.launchQueue,
-    schedulerActions, // alternatively schedulerActionsProvider.get()
-    healthModule.healthCheckManager,
-    eventStream,
-    readinessModule.readinessCheckExecutor,
-    storageModule.deploymentRepository
-  )(actorsModule.materializer)
 
   // GREEDY INSTANTIATION
   //

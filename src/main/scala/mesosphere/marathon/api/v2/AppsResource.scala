@@ -17,6 +17,7 @@ import mesosphere.marathon.core.base.Clock
 import mesosphere.marathon.core.event.ApiPostEvent
 import mesosphere.marathon.core.group.GroupManager
 import mesosphere.marathon.core.plugin.PluginManager
+import mesosphere.marathon.core.pod.PodDefinition
 import mesosphere.marathon.plugin.auth._
 import mesosphere.marathon.raml.{ AppConversion, AppExternalVolume, AppPersistentVolume, Raml }
 import mesosphere.marathon.state.PathId._
@@ -66,7 +67,7 @@ class AppsResource @Inject() (
     val selector = selectAuthorized(search(Option(cmd), Option(id), Option(label)))
     // additional embeds are deprecated!
     val resolvedEmbed = InfoEmbedResolver.resolveApp(embed) +
-      AppInfo.Embed.Counts + AppInfo.Embed.Deployments
+      AppInfo.Embed.Counts
     val mapped = result(appInfoService.selectAppsBy(selector, resolvedEmbed))
     Response.ok(jsonObjString("apps" -> mapped)).build()
   }
@@ -88,19 +89,18 @@ class AppsResource @Inject() (
         .map(_ => throw ConflictingChangeException(s"An app with id [${app.id}] already exists."))
         .getOrElse(app)
 
-      val plan = result(groupManager.updateApp(app.id, createOrThrow, app.version, force))
+      result(groupManager.updateApp(app.id, createOrThrow, app.version, force))
 
       val appWithDeployments = AppInfo(
         app,
         maybeCounts = Some(TaskCounts.zero),
         maybeTasks = Some(Seq.empty),
-        maybeDeployments = Some(Seq(Identifiable(plan.id)))
+        maybeDeployments = None
       )
 
       maybePostEvent(req, appWithDeployments.app)
       Response
         .created(new URI(app.id.toString))
-        .header(RestResource.DeploymentHeader, plan.id)
         .entity(jsonString(appWithDeployments))
         .build()
     }
@@ -114,7 +114,7 @@ class AppsResource @Inject() (
     @Context req: HttpServletRequest): Response = authenticated(req) { implicit identity =>
     val resolvedEmbed = InfoEmbedResolver.resolveApp(embed) ++ Set(
       // deprecated. For compatibility.
-      AppInfo.Embed.Counts, AppInfo.Embed.Tasks, AppInfo.Embed.LastTaskFailure, AppInfo.Embed.Deployments
+      AppInfo.Embed.Counts, AppInfo.Embed.Tasks, AppInfo.Embed.LastTaskFailure
     )
 
     def transitiveApps(groupId: PathId): Response = {
@@ -242,7 +242,7 @@ class AppsResource @Inject() (
       rootGroup.removeApp(appId)
     }
 
-    deploymentResult(result(groupManager.updateRoot(appId.parent, deleteApp, force = force)))
+    Response.ok("deleting").build()
   }
 
   @Path("{appId:.+}/tasks")
@@ -268,11 +268,11 @@ class AppsResource @Inject() (
     }
 
     val newVersion = clock.now()
-    val restartDeployment = result(
+    result(
       groupManager.updateApp(id.toRootPath, markForRestartingOrThrow, newVersion, force)
     )
 
-    deploymentResult(restartDeployment)
+    Response.ok("restarting").build()
   }
 
   /**
@@ -294,14 +294,8 @@ class AppsResource @Inject() (
     assumeValid {
       val appUpdate = canonicalAppUpdateFromJson(appId, body, partialUpdate)
       val version = clock.now()
-      val plan = result(groupManager.updateApp(appId, updateOrCreate(appId, _, appUpdate, partialUpdate, allowCreation), version, force))
-      val response = plan.original.app(appId)
-        .map(_ => Response.ok())
-        .getOrElse(Response.created(new URI(appId.toString)))
-      plan.target.app(appId).foreach { appDef =>
-        maybePostEvent(req, appDef)
-      }
-      deploymentResult(plan, response)
+      result(groupManager.updateApp(appId, updateOrCreate(appId, _, appUpdate, partialUpdate, allowCreation), version, force))
+      Response.ok().build()
     }
   }
 
@@ -322,14 +316,22 @@ class AppsResource @Inject() (
       val version = clock.now()
       val updates = canonicalAppUpdatesFromJson(body, partialUpdate)
 
-      def updateGroup(rootGroup: RootGroup): RootGroup = updates.foldLeft(rootGroup) { (group, update) =>
-        update.id.map(PathId(_)) match {
-          case Some(id) => group.updateApp(id, updateOrCreate(id, _, update, partialUpdate, allowCreation = allowCreation), version)
-          case None => group
+      def updateGroup(rootGroup: RootGroup): (RootGroup, Seq[AppDefinition], Seq[PodDefinition]) =
+        updates.foldLeft((rootGroup, Seq[AppDefinition](), Seq[PodDefinition]())) { (result, update) =>
+          update.id.map(PathId(_)) match {
+            case Some(id) =>
+              val (updatedRoot, updatedApps, updatedPods) = result._1.updateApp(
+                id,
+                updateOrCreate(id, _, update, partialUpdate, allowCreation = allowCreation),
+                version
+              )
+              (updatedRoot, result._2 ++ updatedApps, result._3 ++ updatedPods)
+            case None => result
+          }
         }
-      }
 
-      deploymentResult(result(groupManager.updateRoot(PathId.empty, updateGroup, version, force)))
+      result(groupManager.updateRoot(PathId.empty, updateGroup, version, force))
+      Response.ok().build()
     }
   }
 
@@ -431,12 +433,11 @@ object AppsResource {
   def withoutPriorAppDefinition(update: raml.AppUpdate, appId: PathId): raml.App = {
     val selectedStrategy = AppConversion.ResidencyAndUpgradeStrategy(
       residency = update.residency.map(Raml.fromRaml(_)),
-      upgradeStrategy = update.upgradeStrategy.map(Raml.fromRaml(_)),
       hasPersistentVolumes = update.container.exists(_.volumes.existsAn[AppPersistentVolume]),
       hasExternalVolumes = update.container.exists(_.volumes.existsAn[AppExternalVolume])
     )
     val template = AppDefinition(
-      appId, residency = selectedStrategy.residency, upgradeStrategy = selectedStrategy.upgradeStrategy)
+      appId, residency = selectedStrategy.residency)
     Raml.fromRaml(update -> template)
   }
 }

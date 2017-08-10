@@ -12,7 +12,6 @@ import mesosphere.marathon.core.actions.ActionManager
 import mesosphere.marathon.core.appinfo.{ AppInfoModule, AppInfoService, GroupInfoService, PodStatusService }
 import mesosphere.marathon.core.async.ExecutionContexts
 import mesosphere.marathon.core.base.Clock
-import mesosphere.marathon.core.deployment.DeploymentManager
 import mesosphere.marathon.core.election.ElectionService
 import mesosphere.marathon.core.group.GroupManager
 import mesosphere.marathon.core.health.HealthCheckManager
@@ -73,8 +72,7 @@ class CoreGuiceModule(config: Config) extends AbstractModule {
     leadershipModule: LeadershipModule,
     // makeSureToInitializeThisBeforeCreatingCoordinator
     prerequisite1: TaskStatusUpdateProcessor,
-    prerequisite2: LaunchQueue,
-    prerequisite3: DeploymentManager): LeadershipCoordinator =
+    prerequisite2: LaunchQueue): LeadershipCoordinator =
     leadershipModule.coordinator()
 
   @Provides @Singleton
@@ -133,10 +131,6 @@ class CoreGuiceModule(config: Config) extends AbstractModule {
 
   @Provides
   @Singleton
-  def deploymentRepository(coreModule: CoreModule): DeploymentRepository = coreModule.storageModule.deploymentRepository
-
-  @Provides
-  @Singleton
   def taskFailureRepository(coreModule: CoreModule): TaskFailureRepository =
     coreModule.storageModule.taskFailureRepository
 
@@ -165,8 +159,7 @@ class CoreGuiceModule(config: Config) extends AbstractModule {
     notifyRateLimiterStepImpl: NotifyRateLimiterStepImpl,
     notifyLaunchQueueStepImpl: NotifyLaunchQueueStepImpl,
     taskStatusEmitterPublishImpl: TaskStatusEmitterPublishStepImpl,
-    postToEventStreamStepImpl: PostToEventStreamStepImpl,
-    scaleAppUpdateStepImpl: ScaleAppUpdateStepImpl): Seq[InstanceChangeHandler] = {
+    postToEventStreamStepImpl: PostToEventStreamStepImpl): Seq[InstanceChangeHandler] = {
 
     // This is a sequence on purpose. The specified steps are executed in order for every
     // task status update.
@@ -185,8 +178,7 @@ class CoreGuiceModule(config: Config) extends AbstractModule {
       ContinueOnErrorStep(notifyRateLimiterStepImpl),
       ContinueOnErrorStep(notifyLaunchQueueStepImpl),
       ContinueOnErrorStep(taskStatusEmitterPublishImpl),
-      ContinueOnErrorStep(postToEventStreamStepImpl),
-      ContinueOnErrorStep(scaleAppUpdateStepImpl)
+      ContinueOnErrorStep(postToEventStreamStepImpl)
     )
   }
 
@@ -234,10 +226,6 @@ class CoreGuiceModule(config: Config) extends AbstractModule {
 
   @Provides @Singleton
   def healthCheckManager(coreModule: CoreModule): HealthCheckManager = coreModule.healthModule.healthCheckManager
-
-  @Provides
-  @Singleton
-  def deploymentManager(coreModule: CoreModule): DeploymentManager = coreModule.deploymentModule.deploymentManager
 
   @Provides
   @Singleton

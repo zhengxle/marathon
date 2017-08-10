@@ -8,7 +8,6 @@ import akka.stream.scaladsl.Source
 import mesosphere.marathon.core.instance.Instance
 import mesosphere.marathon.core.pod.PodDefinition
 import mesosphere.marathon.state.{ AppDefinition, Group, PathId, RootGroup, RunSpec, Timestamp }
-import mesosphere.marathon.core.deployment.DeploymentPlan
 
 import scala.concurrent.Future
 import scala.collection.immutable.Seq
@@ -107,10 +106,10 @@ trait GroupManager {
     */
   def updateRoot(
     id: PathId,
-    fn: RootGroup => RootGroup,
+    fn: RootGroup => (RootGroup, Seq[AppDefinition], Seq[PodDefinition]),
     version: Timestamp = Timestamp.now(),
     force: Boolean = false,
-    toKill: Map[PathId, Seq[Instance]] = Map.empty): Future[DeploymentPlan]
+    toKill: Map[PathId, Seq[Instance]] = Map.empty): Future[Done]
 
   /**
     * Update application with given identifier and update function.
@@ -128,7 +127,7 @@ trait GroupManager {
     fn: Option[AppDefinition] => AppDefinition,
     version: Timestamp = Timestamp.now(),
     force: Boolean = false,
-    toKill: Seq[Instance] = Seq.empty): Future[DeploymentPlan] =
+    toKill: Seq[Instance] = Seq.empty): Future[Done] =
     updateRoot(appId.parent, _.updateApp(appId, fn, version), version, force, Map(appId -> toKill))
 
   /**
@@ -148,7 +147,7 @@ trait GroupManager {
     version: Timestamp = Timestamp.now(),
     force: Boolean = false,
     toKill: Seq[Instance] = Seq.empty
-  ): Future[DeploymentPlan] = updateRoot(podId.parent, _.updatePod(podId, fn, version), version, force, Map(podId -> toKill))
+  ): Future[Done] = updateRoot(podId.parent, _.updatePod(podId, fn, version), version, force, Map(podId -> toKill))
 
   /**
     * Refresh the internal root group cache. When calling this function, the internal hold cached root group will be dropped

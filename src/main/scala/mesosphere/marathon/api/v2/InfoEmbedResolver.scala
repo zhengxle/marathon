@@ -34,13 +34,13 @@ private[api] object InfoEmbedResolver {
     */
   def resolveApp(embed: Set[String]): Set[AppInfo.Embed] = {
     def mapEmbedStrings(prefix: String, withoutPrefix: String): Set[AppInfo.Embed] = withoutPrefix match {
-      case EmbedTasks => Set(AppInfo.Embed.Tasks, /* deprecated */ AppInfo.Embed.Deployments)
+      case EmbedTasks => Set(AppInfo.Embed.Tasks)
       case EmbedTasksAndFailures =>
         log.warn(s"Using deprecated embed=s$prefix$withoutPrefix. " +
           s"Use ${prefix}tasks, ${prefix}lastTaskFailure, ${prefix}deployments instead.")
-        Set(AppInfo.Embed.Tasks, AppInfo.Embed.LastTaskFailure, AppInfo.Embed.Deployments)
-      case EmbedDeployments => Set(AppInfo.Embed.Deployments)
-      case EmbedReadiness => Set(AppInfo.Embed.Readiness)
+        Set(AppInfo.Embed.Tasks, AppInfo.Embed.LastTaskFailure)
+      case EmbedDeployments => Set.empty
+      case EmbedReadiness => Set.empty
       case EmbedLastTaskFailure => Set(AppInfo.Embed.LastTaskFailure)
       case EmbedCounts => Set(AppInfo.Embed.Counts)
       case EmbedTaskStats => Set(AppInfo.Embed.TaskStats)

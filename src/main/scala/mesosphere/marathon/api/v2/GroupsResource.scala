@@ -13,8 +13,8 @@ import mesosphere.marathon.api.v2.Validation._
 import mesosphere.marathon.api.v2.json.Formats._
 import mesosphere.marathon.api.{ AuthResource, MarathonMediaType }
 import mesosphere.marathon.core.appinfo.{ GroupInfo, GroupInfoService, Selector }
-import mesosphere.marathon.core.deployment.DeploymentPlan
 import mesosphere.marathon.core.group.GroupManager
+import mesosphere.marathon.core.pod.PodDefinition
 import mesosphere.marathon.plugin.auth._
 import mesosphere.marathon.raml.{ GroupConversion, Raml }
 import mesosphere.marathon.state.PathId._
@@ -200,8 +200,8 @@ class GroupsResource @Inject() (
         rootGroup.transitiveAppsById.get(effectivePath),
         s"An app with the path $effectivePath already exists.")
 
-      val (deployment, path) = updateOrCreate(effectivePath, groupUpdate, force)
-      deploymentResult(deployment, Response.created(new URI(path.toString)))
+      val path = updateOrCreate(effectivePath, groupUpdate, force)
+      Response.created(new URI(path.toString)).build()
     }
   }
 
@@ -247,16 +247,12 @@ class GroupsResource @Inject() (
       if (dryRun) {
 
         val originalGroup = groupManager.rootGroup()
-        val updatedGroup = applyGroupUpdate(originalGroup, effectivePath, groupUpdate, newVersion)
+        applyGroupUpdate(originalGroup, effectivePath, groupUpdate, newVersion)
 
-        ok(
-          Json.obj(
-            "steps". ->(DeploymentPlan(originalGroup, updatedGroup).steps)
-          ).toString()
-        )
+        ok()
       } else {
-        val (deployment, _) = updateOrCreate(effectivePath, groupUpdate, force)
-        deploymentResult(deployment)
+        updateOrCreate(effectivePath, groupUpdate, force)
+        Response.ok().build()
       }
     }
   }
@@ -267,13 +263,13 @@ class GroupsResource @Inject() (
     @Context req: HttpServletRequest): Response = authenticated(req) { implicit identity =>
     val version = Timestamp.now()
 
-    def clearRootGroup(rootGroup: RootGroup): RootGroup = {
+    def clearRootGroup(rootGroup: RootGroup) = {
       checkAuthorization(DeleteGroup, rootGroup)
-      RootGroup(version = version)
+      (RootGroup(version = version), Seq.empty, Seq.empty)
     }
 
-    val deployment = result(groupManager.updateRoot(PathId.empty, clearRootGroup, version, force))
-    deploymentResult(deployment)
+    result(groupManager.updateRoot(PathId.empty, clearRootGroup, version, force))
+    Response.ok().build()
   }
 
   /**
@@ -296,18 +292,18 @@ class GroupsResource @Inject() (
         case Some(group) => checkAuthorization(DeleteGroup, group)
         case None => throw UnknownGroupException(groupId)
       }
-      rootGroup.removeGroup(groupId, version)
+      (rootGroup.removeGroup(groupId, version), Seq.empty, Seq.empty)
     }
 
     val deployment = result(groupManager.updateRoot(groupId.parent, deleteGroup, version, force))
-    deploymentResult(deployment)
+    Response.ok().build()
   }
 
   private def applyGroupUpdate(
     rootGroup: RootGroup,
     groupId: PathId,
     groupUpdate: raml.GroupUpdate,
-    newVersion: Timestamp)(implicit identity: Identity): RootGroup = {
+    newVersion: Timestamp)(implicit identity: Identity): (RootGroup, Seq[AppDefinition], Seq[PodDefinition]) = {
     val group = rootGroup.group(groupId).getOrElse(Group.empty(groupId))
 
     /**
@@ -325,7 +321,7 @@ class GroupsResource @Inject() (
 
     def scaleChange: Option[RootGroup] = groupUpdate.scaleBy.map { scale =>
       checkAuthorization(UpdateGroup, group)
-      rootGroup.updateTransitiveApps(group.id, app => app.copy(instances = (app.instances * scale).ceil.toInt), newVersion)
+      rootGroup.updateTransitiveApps(group.id, app => app.copy(), newVersion)
     }
 
     def createOrUpdateChange: RootGroup = {
@@ -340,18 +336,18 @@ class GroupsResource @Inject() (
       rootGroup.putGroup(updatedGroup, newVersion)
     }
 
-    versionChange.orElse(scaleChange).getOrElse(createOrUpdateChange)
+    (versionChange.orElse(scaleChange).getOrElse(createOrUpdateChange), Seq.empty, Seq.empty)
   }
 
   private def updateOrCreate(
     id: PathId,
     update: raml.GroupUpdate,
-    force: Boolean)(implicit identity: Identity): (DeploymentPlan, PathId) = {
+    force: Boolean)(implicit identity: Identity): PathId = {
     val version = Timestamp.now()
 
     val effectivePath = update.id.map(PathId(_).canonicalPath(id)).getOrElse(id)
-    val deployment = result(groupManager.updateRoot(id.parent, applyGroupUpdate(_, effectivePath, update, version), version, force))
-    (deployment, effectivePath)
+    result(groupManager.updateRoot(id.parent, applyGroupUpdate(_, effectivePath, update, version), version, force))
+    effectivePath
   }
 
   def authorizationSelectors(implicit identity: Identity): GroupInfoService.Selectors = {

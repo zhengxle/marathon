@@ -412,8 +412,6 @@ trait AppValidation {
     app must complyWithMigrationAPI
     app must complyWithReadinessCheckRules
     app must complyWithResidencyRules
-    app must complyWithSingleInstanceLabelRules
-    app must complyWithUpgradeStrategyRules
     app must complyWithDockerNetworkingRules
     app must requireUnreachableDisabledForResidentTasks
     app.constraints.each must complyWithAppConstraintRules

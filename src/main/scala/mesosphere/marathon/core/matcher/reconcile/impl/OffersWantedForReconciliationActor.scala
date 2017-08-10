@@ -5,9 +5,7 @@ import akka.actor.{ Actor, Cancellable, Props }
 import akka.event.{ EventStream, LoggingReceive }
 import mesosphere.marathon.core.base.Clock
 import mesosphere.marathon.core.flow.ReviveOffersConfig
-import mesosphere.marathon.core.event.DeploymentStepSuccess
 import mesosphere.marathon.state.Timestamp
-import mesosphere.marathon.core.deployment.StopApplication
 import org.slf4j.LoggerFactory
 import rx.lang.scala.Observer
 
@@ -49,8 +47,6 @@ private[reconcile] class OffersWantedForReconciliationActor(
   override def preStart(): Unit = {
     super.preStart()
 
-    eventStream.subscribe(self, classOf[DeploymentStepSuccess])
-
     log.info(s"Started. Will remain interested in offer reconciliation for $interestDuration when needed.")
     self ! OffersWantedForReconciliationActor.RequestOffers("becoming leader")
   }
@@ -64,17 +60,7 @@ private[reconcile] class OffersWantedForReconciliationActor(
   override def receive: Receive = unsubscribedToOffers
 
   private[this] def handleRequestOfferIndicators: Receive = {
-    case success: DeploymentStepSuccess =>
-      val terminatedResidentApps = success.currentStep.actions.view.collect {
-        case StopApplication(app) if app.residency.isDefined => app
-      }
-
-      if (terminatedResidentApps.nonEmpty) {
-        val terminatedResidentAppsString = terminatedResidentApps.map(_.id).mkString(", ")
-        self ! OffersWantedForReconciliationActor.RequestOffers(
-          s"terminated resident app(s) $terminatedResidentAppsString"
-        )
-      }
+    case _ => log.info("received message")
   }
 
   private[this] def switchToSubscribedToOffers(reason: String): Receive = {

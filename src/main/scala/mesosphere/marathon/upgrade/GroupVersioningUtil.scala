@@ -30,9 +30,6 @@ object GroupVersioningUtil {
           if (oldApp.isUpgrade(newApp)) {
             log.info(s"[${newApp.id}]: upgrade detected for app (oldVersion ${oldApp.versionInfo})")
             oldApp.versionInfo.withConfigChange(newVersion = version)
-          } else if (oldApp.isOnlyScaleChange(newApp)) {
-            log.info(s"[${newApp.id}]: scaling op detected for app (oldVersion ${oldApp.versionInfo})")
-            oldApp.versionInfo.withScaleOrRestartChange(newVersion = version)
           } else if (oldApp.versionInfo != newApp.versionInfo && newApp.versionInfo == VersionInfo.NoVersion) {
             log.info(s"[${newApp.id}]: restart detected for app (oldVersion ${oldApp.versionInfo})")
             oldApp.versionInfo.withScaleOrRestartChange(newVersion = version)
@@ -50,8 +47,7 @@ object GroupVersioningUtil {
       if (updated.versionInfo != newApp.versionInfo) Some(updated) else None
     }
     updatedTargetApps.foldLeft(to) { (resultGroup, updatedApp) =>
-      resultGroup.updateApp(updatedApp.id, _ => updatedApp, version)
+      resultGroup.updateApp(updatedApp.id, _ => updatedApp, version)._1
     }
   }
-
 }

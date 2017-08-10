@@ -1,11 +1,9 @@
 package mesosphere.marathon
 package core
 
-import mesosphere.marathon.SchedulerActions
 import mesosphere.marathon.core.actions.impl.ActionManagerModule
 import mesosphere.marathon.core.auth.AuthModule
 import mesosphere.marathon.core.base.ActorsModule
-import mesosphere.marathon.core.deployment.DeploymentModule
 import mesosphere.marathon.core.election.ElectionModule
 import mesosphere.marathon.core.event.EventModule
 import mesosphere.marathon.core.group.GroupManagerModule
@@ -49,6 +47,5 @@ trait CoreModule {
   def taskJobsModule: TaskJobsModule
   def taskTrackerModule: InstanceTrackerModule
   def taskTerminationModule: TaskTerminationModule
-  def deploymentModule: DeploymentModule
   def schedulerActions: SchedulerActions
 }

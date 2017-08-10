@@ -7,17 +7,15 @@ import akka.actor.ActorSystem
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server.Route
 import mesosphere.marathon.api.v2.{ AppNormalization, AppTasksResource, InfoEmbedResolver, LabelSelectorParsers }
-import mesosphere.marathon.api.akkahttp.{ Controller, EntityMarshallers }
 import mesosphere.marathon.api.v2.AppsResource.{ NormalizationConfig, authzSelector }
 import mesosphere.marathon.api.v2.Validation.validateOrThrow
 import mesosphere.marathon.api.v2.validation.AppValidation
 import mesosphere.marathon.core.appinfo._
 import mesosphere.marathon.core.base.Clock
-import mesosphere.marathon.core.deployment.DeploymentPlan
 import mesosphere.marathon.core.group.GroupManager
 import mesosphere.marathon.core.plugin.PluginManager
 import mesosphere.marathon.plugin.auth.{ Authenticator => MarathonAuthenticator, Authorizer, CreateRunSpec, Identity, ViewResource }
-import mesosphere.marathon.state.{ AppDefinition, Identifiable, PathId }
+import mesosphere.marathon.state.{ AppDefinition, PathId }
 import play.api.libs.json.Json
 import PathId._
 import mesosphere.marathon.core.election.ElectionService
@@ -61,7 +59,7 @@ class AppsController(
           label.map(new LabelSelectorParsers().parsed),
           Some(authzSelector)
         ).flatten
-        val resolvedEmbed = InfoEmbedResolver.resolveApp(embed.toSet) + AppInfo.Embed.Counts + AppInfo.Embed.Deployments
+        val resolvedEmbed = InfoEmbedResolver.resolveApp(embed.toSet) + AppInfo.Embed.Counts
         appInfoService.selectAppsBy(Selector.forall(selectors), resolvedEmbed)
       }
       onSuccess(index)(apps => complete(Json.obj("apps" -> apps)))
@@ -69,26 +67,25 @@ class AppsController(
   }
 
   private def createApp(app: AppDefinition, force: Boolean)(implicit identity: Identity): Route = {
-    def create: Future[(DeploymentPlan, AppInfo)] = {
+    def create: Future[AppInfo] = {
 
       def createOrThrow(opt: Option[AppDefinition]) = opt
         .map(_ => throw ConflictingChangeException(s"An app with id [${app.id}] already exists."))
         .getOrElse(app)
 
-      groupManager.updateApp(app.id, createOrThrow, app.version, force).map { plan =>
-        val appWithDeployments = AppInfo(
+      groupManager.updateApp(app.id, createOrThrow, app.version, force).map { _ =>
+        AppInfo(
           app,
           maybeCounts = Some(TaskCounts.zero),
           maybeTasks = Some(Seq.empty),
-          maybeDeployments = Some(Seq(Identifiable(plan.id)))
+          maybeDeployments = None
         )
-        plan -> appWithDeployments
       }
     }
     authorized(CreateRunSpec, app).apply {
-      onSuccess(create) { (plan, app) =>
+      onSuccess(create) { app =>
         //TODO: post ApiPostEvent
-        complete((StatusCodes.Created, Seq(Headers.`Marathon-Deployment-Id`(plan.id)), app))
+        complete((StatusCodes.Created, app))
       }
     }
   }
@@ -97,7 +94,7 @@ class AppsController(
     parameters('embed.*) { embed =>
       val resolvedEmbed = InfoEmbedResolver.resolveApp(embed.toSet) ++ Set(
         // deprecated. For compatibility.
-        AppInfo.Embed.Counts, AppInfo.Embed.Tasks, AppInfo.Embed.LastTaskFailure, AppInfo.Embed.Deployments
+        AppInfo.Embed.Counts, AppInfo.Embed.Tasks, AppInfo.Embed.LastTaskFailure
       )
 
       onSuccess(appInfoService.selectApp(appId, authzSelector, resolvedEmbed)) {

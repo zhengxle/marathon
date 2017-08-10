@@ -6,7 +6,7 @@ import java.util.regex.Pattern
 import com.wix.accord._
 import com.wix.accord.dsl._
 import mesosphere.marathon.api.v2.Validation
-import mesosphere.marathon.raml.{ App, Apps, Constraint, ConstraintOperator, PodPlacementPolicy, PodSchedulingBackoffStrategy, PodSchedulingPolicy, PodUpgradeStrategy, UpgradeStrategy }
+import mesosphere.marathon.raml.{ App, Apps, Constraint, ConstraintOperator, PodPlacementPolicy, PodSchedulingBackoffStrategy, PodSchedulingPolicy }
 import mesosphere.marathon.state.ResourceRole
 
 import scala.util.Try
@@ -21,34 +21,7 @@ trait SchedulingValidation {
     bs.maxLaunchDelay should be >= 0.0
   }
 
-  val upgradeStrategyValidator = validator[PodUpgradeStrategy] { us =>
-    us.maximumOverCapacity should be >= 0.0
-    us.maximumOverCapacity should be <= 1.0
-    us.minimumHealthCapacity should be >= 0.0
-    us.minimumHealthCapacity should be <= 1.0
-  }
-
-  val complyWithSingleInstanceLabelRules: Validator[App] =
-    isTrue("Single instance app may only have one instance") { app =>
-      (!isSingleInstance(app)) || (app.instances <= 1)
-    }
-
   def isSingleInstance(app: App): Boolean = app.labels.get(Apps.LabelSingleInstanceApp).contains("true")
-
-  val complyWithUpgradeStrategyRules: Validator[App] = validator[App] { app =>
-    app.upgradeStrategy is optional(implied(isSingleInstance(app))(validForSingleInstanceApps))
-    app.upgradeStrategy is optional(implied(app.residency.nonEmpty)(validForResidentTasks))
-  }
-
-  lazy val validForResidentTasks: Validator[UpgradeStrategy] = validator[UpgradeStrategy] { strategy =>
-    strategy.minimumHealthCapacity is between(0.0, 1.0)
-    strategy.maximumOverCapacity should valid(be == 0.0)
-  }
-
-  lazy val validForSingleInstanceApps: Validator[UpgradeStrategy] = validator[UpgradeStrategy] { strategy =>
-    strategy.minimumHealthCapacity should valid(be == 0.0)
-    strategy.maximumOverCapacity should valid(be == 0.0)
-  }
 
   val complyWithConstraintRules: Validator[Constraint] = new Validator[Constraint] {
     import mesosphere.marathon.raml.ConstraintOperator._
@@ -97,7 +70,6 @@ trait SchedulingValidation {
 
   val schedulingValidator = validator[PodSchedulingPolicy] { psp =>
     psp.backoff is optional(backoffStrategyValidator)
-    psp.upgrade is optional(upgradeStrategyValidator)
     psp.placement is optional(placementStrategyValidator)
   }
 

@@ -21,7 +21,7 @@ class AppInfoModule @Inject() (
     marathonSchedulerService: MarathonSchedulerService,
     taskFailureRepository: TaskFailureRepository) {
   private[this] def appInfoBaseData(): AppInfoBaseData = new AppInfoBaseData(
-    clock, taskTracker, healthCheckManager, marathonSchedulerService, taskFailureRepository, groupManager)
+    clock, taskTracker, healthCheckManager, taskFailureRepository, groupManager)
 
   def appInfoService: AppInfoService = infoService
   def groupInfoService: GroupInfoService = infoService

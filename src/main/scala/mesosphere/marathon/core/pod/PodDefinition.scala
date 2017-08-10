@@ -28,7 +28,6 @@ case class PodDefinition(
     podVolumes: Seq[Volume] = PodDefinition.DefaultVolumes,
     networks: Seq[Network] = PodDefinition.DefaultNetworks,
     backoffStrategy: BackoffStrategy = PodDefinition.DefaultBackoffStrategy,
-    upgradeStrategy: UpgradeStrategy = PodDefinition.DefaultUpgradeStrategy,
     executorResources: Resources = PodDefinition.DefaultExecutorResources,
     override val unreachableStrategy: UnreachableStrategy = PodDefinition.DefaultUnreachableStrategy,
     override val killSelection: KillSelection = KillSelection.DefaultKillSelection
@@ -65,8 +64,7 @@ case class PodDefinition(
           constraints != to.constraints ||
           podVolumes != to.podVolumes ||
           networks != to.networks ||
-          backoffStrategy != to.backoffStrategy ||
-          upgradeStrategy != to.upgradeStrategy
+          backoffStrategy != to.backoffStrategy
       }
     case _ =>
       // A validation rule will ensure, this can not happen
@@ -75,11 +73,6 @@ case class PodDefinition(
   // scalastyle:on
 
   override def needsRestart(to: RunSpec): Boolean = this.version != to.version || isUpgrade(to)
-
-  override def isOnlyScaleChange(to: RunSpec): Boolean = to match {
-    case to: PodDefinition => !isUpgrade(to) && (instances != to.instances)
-    case _ => throw new IllegalStateException("Can't change pod to app")
-  }
 
   // TODO(PODS) versionInfo
   override val versionInfo: VersionInfo = VersionInfo.OnlyVersion(version)
@@ -123,6 +116,5 @@ object PodDefinition {
   val DefaultVolumes = Seq.empty[Volume]
   val DefaultNetworks: Seq[Network] = PodNormalization.DefaultNetworks.map(_.fromRaml)
   val DefaultBackoffStrategy = BackoffStrategy()
-  val DefaultUpgradeStrategy = AppDefinition.DefaultUpgradeStrategy
   val DefaultUnreachableStrategy = UnreachableStrategy.default(resident = false)
 }

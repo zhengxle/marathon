@@ -93,7 +93,6 @@ class AppTasksResource @Inject() (
   def deleteMany(
     @PathParam("appId") appId: String,
     @QueryParam("host") host: String,
-    @QueryParam("scale")@DefaultValue("false") scale: Boolean = false,
     @QueryParam("force")@DefaultValue("false") force: Boolean = false,
     @QueryParam("wipe")@DefaultValue("false") wipe: Boolean = false,
     @Context req: HttpServletRequest): Response = authenticated(req) { implicit identity =>
@@ -105,15 +104,8 @@ class AppTasksResource @Inject() (
       }
     }
 
-    if (scale && wipe) throw new BadRequestException("You cannot use scale and wipe at the same time.")
-
-    if (scale) {
-      val deploymentF = taskKiller.killAndScale(pathId, findToKill, force)
-      deploymentResult(result(deploymentF))
-    } else {
-      reqToResponse(taskKiller.kill(pathId, findToKill, wipe)) {
-        tasks => ok(jsonObjString("tasks" -> tasks))
-      }
+    reqToResponse(taskKiller.kill(pathId, findToKill, wipe)) {
+      tasks => ok(jsonObjString("tasks" -> tasks))
     }
   }
 
@@ -122,11 +114,11 @@ class AppTasksResource @Inject() (
   def deleteOne(
     @PathParam("appId") appId: String,
     @PathParam("taskId") id: String,
-    @QueryParam("scale")@DefaultValue("false") scale: Boolean = false,
     @QueryParam("force")@DefaultValue("false") force: Boolean = false,
     @QueryParam("wipe")@DefaultValue("false") wipe: Boolean = false,
     @Context req: HttpServletRequest): Response = authenticated(req) { implicit identity =>
     val pathId = appId.toRootPath
+
     def findToKill(appTasks: Seq[Instance]): Seq[Instance] = {
       try {
         val instanceId = Task.Id(id).instanceId
@@ -137,15 +129,8 @@ class AppTasksResource @Inject() (
       }
     }
 
-    if (scale && wipe) throw new BadRequestException("You cannot use scale and wipe at the same time.")
-
-    if (scale) {
-      val deploymentF = taskKiller.killAndScale(pathId, findToKill, force)
-      deploymentResult(result(deploymentF))
-    } else {
-      reqToResponse(taskKiller.kill(pathId, findToKill, wipe)) {
-        tasks => tasks.headOption.fold(unknownTask(id))(task => ok(jsonObjString("task" -> task)))
-      }
+    reqToResponse(taskKiller.kill(pathId, findToKill, wipe)) {
+      tasks => tasks.headOption.fold(unknownTask(id))(task => ok(jsonObjString("task" -> task)))
     }
   }
 

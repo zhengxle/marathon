@@ -3,12 +3,10 @@ package core.appinfo.impl
 
 import mesosphere.marathon.core.appinfo.{ AppInfo, EnrichedTask, TaskCounts, TaskStatsByVersion }
 import mesosphere.marathon.core.base.Clock
-import mesosphere.marathon.core.deployment.{ DeploymentPlan, DeploymentStepInfo }
 import mesosphere.marathon.core.group.GroupManager
 import mesosphere.marathon.core.health.{ Health, HealthCheckManager }
 import mesosphere.marathon.core.instance.Instance
 import mesosphere.marathon.core.pod.PodDefinition
-import mesosphere.marathon.core.readiness.ReadinessCheckResult
 import mesosphere.marathon.core.task.tracker.InstanceTracker
 import mesosphere.marathon.raml.{ PodInstanceState, PodInstanceStatus, PodState, PodStatus, Raml }
 import mesosphere.marathon.state._
@@ -25,7 +23,6 @@ class AppInfoBaseData(
     clock: Clock,
     instanceTracker: InstanceTracker,
     healthCheckManager: HealthCheckManager,
-    deploymentService: DeploymentService,
     taskFailureRepository: TaskFailureRepository,
     groupManager: GroupManager) {
 
@@ -33,37 +30,6 @@ class AppInfoBaseData(
   import mesosphere.marathon.core.async.ExecutionContexts.global
 
   if (log.isDebugEnabled) log.debug(s"new AppInfoBaseData $this")
-
-  lazy val runningDeployments: Future[Seq[DeploymentStepInfo]] = deploymentService.listRunningDeployments()
-
-  lazy val readinessChecksByAppFuture: Future[Map[PathId, Seq[ReadinessCheckResult]]] = {
-    runningDeployments.map { infos =>
-      infos.foldLeft(Map.empty[PathId, Vector[ReadinessCheckResult]].withDefaultValue(Vector.empty)) { (result, info) =>
-        result ++ info.readinessChecksByApp.map {
-          case (appId, checkResults) => appId -> (result(appId) ++ checkResults)
-        }
-      }
-    }
-  }
-
-  lazy val runningDeploymentsByAppFuture: Future[Map[PathId, Seq[Identifiable]]] = {
-    log.debug("Retrieving running deployments")
-
-    val allRunningDeploymentsFuture: Future[Seq[DeploymentPlan]] = runningDeployments.map(_.map(_.plan))
-
-    allRunningDeploymentsFuture.map { allDeployments =>
-      val byApp = Map.empty[PathId, Vector[DeploymentPlan]].withDefaultValue(Vector.empty)
-      val deploymentsByAppId = allDeployments.foldLeft(byApp) { (result, deploymentPlan) =>
-        deploymentPlan.affectedRunSpecIds.foldLeft(result) { (result, appId) =>
-          val newEl = appId -> (result(appId) :+ deploymentPlan)
-          result + newEl
-        }
-      }
-      deploymentsByAppId
-        .map { case (id, deployments) => id -> deployments.map(deploymentPlan => Identifiable(deploymentPlan.id)) }
-        .withDefaultValue(Seq.empty)
-    }
-  }
 
   lazy val instancesByRunSpecFuture: Future[InstanceTracker.InstancesBySpec] = {
     log.debug("Retrieve tasks")
@@ -77,10 +43,6 @@ class AppInfoBaseData(
         embed match {
           case AppInfo.Embed.Counts =>
             appData.taskCountsFuture.map(counts => info.copy(maybeCounts = Some(counts)))
-          case AppInfo.Embed.Readiness =>
-            readinessChecksByAppFuture.map(checks => info.copy(maybeReadinessCheckResults = Some(checks(app.id))))
-          case AppInfo.Embed.Deployments =>
-            runningDeploymentsByAppFuture.map(deployments => info.copy(maybeDeployments = Some(deployments(app.id))))
           case AppInfo.Embed.LastTaskFailure =>
             appData.maybeLastTaskFailureFuture.map { maybeLastTaskFailure =>
               info.copy(maybeLastTaskFailure = maybeLastTaskFailure)
@@ -203,10 +165,7 @@ class AppInfoBaseData(
     maybePodSpec.map { pod => Raml.toRaml(pod -> instance) }
   }
 
-  protected def isPodTerminating(id: PathId): Future[Boolean] =
-    runningDeployments.map { infos =>
-      infos.exists(_.plan.deletedPods.contains(id))
-    }
+  protected def isPodTerminating(id: PathId): Future[Boolean] = Future.successful(false)
 
   @SuppressWarnings(Array("all")) // async/await
   protected def podState(

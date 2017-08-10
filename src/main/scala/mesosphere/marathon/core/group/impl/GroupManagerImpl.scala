@@ -9,7 +9,6 @@ import akka.stream.scaladsl.Source
 import akka.{ Done, NotUsed }
 import com.typesafe.scalalogging.StrictLogging
 import mesosphere.marathon.api.v2.Validation
-import mesosphere.marathon.core.deployment.DeploymentPlan
 import mesosphere.marathon.core.event.{ GroupChangeFailed, GroupChangeSuccess }
 import mesosphere.marathon.core.group.{ GroupManager, GroupManagerConfig }
 import mesosphere.marathon.core.instance.Instance
@@ -29,8 +28,7 @@ import scala.util.{ Failure, Success }
 class GroupManagerImpl(
     config: GroupManagerConfig,
     initialRoot: RootGroup,
-    groupRepository: GroupRepository,
-    deploymentService: Provider[DeploymentService])(implicit eventStream: EventStream, ctx: ExecutionContext) extends GroupManager with StrictLogging {
+    groupRepository: GroupRepository)(implicit eventStream: EventStream, ctx: ExecutionContext) extends GroupManager with StrictLogging {
   /**
     * All updates to root() should go through this workqueue and the maxConcurrent should always be "1"
     * as we don't allow multiple updates to the root at the same time.
@@ -86,7 +84,10 @@ class GroupManagerImpl(
   @SuppressWarnings(Array("all")) /* async/await */
   override def updateRoot(
     id: PathId,
-    change: (RootGroup) => RootGroup, version: Timestamp, force: Boolean, toKill: Map[PathId, Seq[Instance]]): Future[DeploymentPlan] = {
+    change: (RootGroup) => (RootGroup, Seq[AppDefinition], Seq[PodDefinition]),
+    version: Timestamp,
+    force: Boolean,
+    toKill: Map[PathId, Seq[Instance]]): Future[Done] = {
 
     // All updates to the root go through the work queue.
     val deployment = serializeUpdates {
@@ -94,24 +95,21 @@ class GroupManagerImpl(
         logger.info(s"Upgrade root group version:$version with force:$force")
 
         val from = rootGroup()
-        val unversioned = assignDynamicServicePorts(from, change(from))
+        val (updatedRoot, updatedApps, updatedPods) = change(from)
+        val unversioned = assignDynamicServicePorts(from, updatedRoot)
         val to = GroupVersioningUtil.updateVersionInfoForChangedApps(version, from, unversioned)
         Validation.validateOrThrow(to)(RootGroup.rootGroupValidator(config.availableFeatures))
-        val plan = DeploymentPlan(from, to, version, toKill)
-        Validation.validateOrThrow(plan)(DeploymentPlan.deploymentPlanValidator())
-        logger.info(s"Computed new deployment plan:\n$plan")
-        await(groupRepository.storeRootVersion(plan.target, plan.createdOrUpdatedApps, plan.createdOrUpdatedPods))
-        await(deploymentService.get().deploy(plan, force))
-        await(groupRepository.storeRoot(plan.target, plan.createdOrUpdatedApps, plan.deletedApps, plan.createdOrUpdatedPods, plan.deletedPods))
-        logger.info(s"Updated groups/apps/pods according to plan ${plan.id}")
-        // finally update the root under the write lock.
-        root := plan.target
-        plan
+        await(groupRepository.storeRootVersion(to, updatedApps, updatedPods))
+        await(groupRepository.storeRoot(to, updatedApps, Seq.empty, updatedPods, Seq.empty))
+        logger.info(s"Updated groups/apps/pods")
+        root := to
+        Done
       }
     }
+
     deployment.onComplete {
       case Success(plan) =>
-        logger.info(s"Deployment acknowledged. Waiting to get processed:\n$plan")
+        logger.info(s"Deployment acknowledged. Waiting to get processed.")
         eventStream.publish(GroupChangeSuccess(id, version.toString))
       case Failure(ex: AccessDeniedException) =>
         // If the request was not authorized, we should not publish an event
@@ -189,7 +187,7 @@ class GroupManagerImpl(
       }
 
     dynamicApps.foldLeft(to) { (rootGroup, app) =>
-      rootGroup.updateApp(app.id, _ => app, app.version)
+      rootGroup.updateApp(app.id, _ => app, app.version)._1
     }
   }
 

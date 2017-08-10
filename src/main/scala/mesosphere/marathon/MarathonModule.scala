@@ -11,13 +11,12 @@ import akka.stream.Materializer
 import com.google.inject._
 import com.google.inject.name.Names
 import mesosphere.chaos.http.HttpConf
-import mesosphere.marathon.core.deployment.DeploymentManager
 import mesosphere.marathon.core.election.ElectionService
 import mesosphere.marathon.core.health.HealthCheckManager
 import mesosphere.marathon.core.heartbeat._
 import mesosphere.marathon.core.launchqueue.LaunchQueue
 import mesosphere.marathon.core.task.termination.KillService
-import mesosphere.marathon.storage.repository.{ DeploymentRepository, GroupRepository }
+import mesosphere.marathon.storage.repository.GroupRepository
 import mesosphere.util.state._
 import org.apache.mesos.Scheduler
 import org.slf4j.LoggerFactory
@@ -53,7 +52,6 @@ class MarathonModule(conf: MarathonConf, http: HttpConf, actorSystem: ActorSyste
     bind(classOf[MarathonSchedulerDriverHolder]).in(Scopes.SINGLETON)
     bind(classOf[SchedulerDriverFactory]).to(classOf[MesosSchedulerDriverFactory]).in(Scopes.SINGLETON)
     bind(classOf[MarathonSchedulerService]).in(Scopes.SINGLETON)
-    bind(classOf[DeploymentService]).to(classOf[MarathonSchedulerService])
 
     bind(classOf[String])
       .annotatedWith(Names.named(ModuleNames.SERVER_SET_PATH))
@@ -88,7 +86,6 @@ class MarathonModule(conf: MarathonConf, http: HttpConf, actorSystem: ActorSyste
   def provideSchedulerActor(
     system: ActorSystem,
     groupRepository: GroupRepository,
-    deploymentRepository: DeploymentRepository,
     healthCheckManager: HealthCheckManager,
     killService: KillService,
     launchQueue: LaunchQueue,
@@ -96,7 +93,6 @@ class MarathonModule(conf: MarathonConf, http: HttpConf, actorSystem: ActorSyste
     electionService: ElectionService,
     eventBus: EventStream,
     schedulerActions: SchedulerActions,
-    deploymentManager: DeploymentManager,
     @Named(ModuleNames.HISTORY_ACTOR_PROPS) historyActorProps: Props)(implicit mat: Materializer): ActorRef = {
     val supervision = OneForOneStrategy() {
       case NonFatal(_) => Restart
@@ -106,8 +102,6 @@ class MarathonModule(conf: MarathonConf, http: HttpConf, actorSystem: ActorSyste
       MarathonSchedulerActor.props(
         groupRepository,
         schedulerActions,
-        deploymentManager,
-        deploymentRepository,
         historyActorProps,
         healthCheckManager,
         killService,

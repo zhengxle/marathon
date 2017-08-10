@@ -38,34 +38,6 @@ types:
       taskLostBehavior:
         type: strings.TaskLostBehavior
         default: WAIT_FOREVER
-  UpgradeStrategy:
-    type: object
-    description: |
-      During an upgrade all instances of an application get replaced by a new
-      version.
-      The upgradeStrategy controls how Marathon stops old versions and
-      launches new versions.
-    properties:
-      maximumOverCapacity:
-        type: number
-        format: double
-        minimum: 0.0
-        maximum: 1.0
-        description: |
-          A number between 0 and 1 which is multiplied with the instance count.
-          This is the maximum number of additional instances launched at any
-          point of time during the upgrade process.
-      minimumHealthCapacity:
-        type: number
-        format: double
-        minimum: 0.0
-        maximum: 1.0
-        description: |
-          A number between 0 and 1 that is multiplied with the instance count.
-          This is the minimum number of healthy nodes that do not sacrifice
-          overall application purpose. Marathon will make sure, during the
-          upgrade process, that at any point of time this number of healthy
-          instances are up.
   App:
     type: object
     (pragma.generateUpdateType):
@@ -190,15 +162,6 @@ types:
         type: health.AppHealthCheck[]
         (pragma.omitEmpty):
         uniqueItems: true
-      instances?:
-        type: integer
-        format: int32
-        minimum: 0
-        default: 1
-        description: |
-          The number of instances of this application to start.
-          Please note: this number can be changed any time as needed to
-          scale the application.
       labels?: label.KVLabels
       maxLaunchDelaySeconds?:
         type: integer
@@ -287,7 +250,6 @@ types:
           SIGKILL when signalling tasks to terminate.
           Using this grace period, tasks should perform orderly shut down
           immediately upon receiving SIGTERM.
-      upgradeStrategy?: UpgradeStrategy
       uris?:
         type: array
         (pragma.forceOptional):

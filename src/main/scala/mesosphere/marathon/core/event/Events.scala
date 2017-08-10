@@ -10,7 +10,6 @@ import mesosphere.marathon.core.instance.update.InstanceChange
 import mesosphere.marathon.core.task.Task
 import mesosphere.marathon.core.instance.Instance
 import mesosphere.marathon.state.{ AppDefinition, PathId, Timestamp }
-import mesosphere.marathon.core.deployment.{ DeploymentPlan, DeploymentStep }
 import org.apache.mesos.{ Protos => Mesos }
 import play.api.libs.json.Json
 
@@ -172,36 +171,6 @@ case class GroupChangeFailed(
   version: String,
   reason: String,
   eventType: String = "group_change_failed",
-  timestamp: String = Timestamp.now().toString) extends UpgradeEvent
-
-case class DeploymentSuccess(
-  id: String,
-  plan: DeploymentPlan,
-  eventType: String = "deployment_success",
-  timestamp: String = Timestamp.now().toString) extends UpgradeEvent
-
-case class DeploymentFailed(
-  id: String,
-  plan: DeploymentPlan,
-  eventType: String = "deployment_failed",
-  timestamp: String = Timestamp.now().toString) extends UpgradeEvent
-
-case class DeploymentStatus(
-  plan: DeploymentPlan,
-  currentStep: DeploymentStep,
-  eventType: String = "deployment_info",
-  timestamp: String = Timestamp.now().toString) extends UpgradeEvent
-
-case class DeploymentStepSuccess(
-  plan: DeploymentPlan,
-  currentStep: DeploymentStep,
-  eventType: String = "deployment_step_success",
-  timestamp: String = Timestamp.now().toString) extends UpgradeEvent
-
-case class DeploymentStepFailure(
-  plan: DeploymentPlan,
-  currentStep: DeploymentStep,
-  eventType: String = "deployment_step_failure",
   timestamp: String = Timestamp.now().toString) extends UpgradeEvent
 
 // Mesos scheduler

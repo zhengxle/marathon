@@ -9,7 +9,6 @@ import akka.pattern._
 import akka.stream.Materializer
 import kamon.Kamon
 import kamon.metric.instrument.Time
-import mesosphere.marathon.core.deployment.DeploymentPlan
 import mesosphere.marathon.state.{ PathId, RootGroup }
 import mesosphere.marathon.storage.repository.GcActor.{ CompactDone, _ }
 import mesosphere.marathon.stream.Sink
@@ -63,7 +62,6 @@ import scala.util.control.NonFatal
   *   more additional GC Requests were sent to the actor.
   */
 private[storage] class GcActor[K, C, S](
-  val deploymentRepository: DeploymentRepositoryImpl[K, C, S],
   val groupRepository: StoredGroupRepositoryImpl[K, C, S],
   val appRepository: AppRepositoryImpl[K, C, S],
   val podRepository: PodRepositoryImpl[K, C, S],
@@ -126,7 +124,6 @@ private[storage] trait ScanBehavior[K, C, S] { this: FSM[State, Data] with Compa
   val appRepository: AppRepositoryImpl[K, C, S]
   val podRepository: PodRepositoryImpl[K, C, S]
   val groupRepository: StoredGroupRepositoryImpl[K, C, S]
-  val deploymentRepository: DeploymentRepositoryImpl[K, C, S]
   val self: ActorRef
   // a val named "log" would conflict with LoggingFSM
   private[this] val logger = LoggerFactory.getLogger(getClass)
@@ -172,17 +169,6 @@ private[storage] trait ScanBehavior[K, C, S] { this: FSM[State, Data] with Compa
       promise.success(Done)
       val appVersions = addAppVersions(root.transitiveAppIds, updates.appVersionsStored)
       stay using updates.copy(rootsStored = updates.rootsStored + root.version, appVersionsStored = appVersions)
-    case Event(StorePlan(plan, promise), updates: UpdatedEntities) =>
-      promise.success(Done)
-      val originalUpdates =
-        addAppVersions(
-          plan.original.transitiveAppsById.map { case (id, app) => id -> app.version.toOffsetDateTime },
-          updates.appVersionsStored)
-      val allUpdates =
-        addAppVersions(plan.target.transitiveAppsById.map { case (id, app) => id -> app.version.toOffsetDateTime }, originalUpdates)
-      val newRootsStored = updates.rootsStored ++
-        Set(plan.original.version.toOffsetDateTime, plan.target.version.toOffsetDateTime)
-      stay using updates.copy(appVersionsStored = allUpdates, rootsStored = newRootsStored)
     case Event(_: Message, _) =>
       stay
   }
@@ -226,32 +212,7 @@ private[storage] trait ScanBehavior[K, C, S] { this: FSM[State, Data] with Compa
   @SuppressWarnings(Array("all")) // async/await
   def scan(): Future[ScanDone] = {
     async { // linter:ignore UnnecessaryElseBranch
-      val rootVersions = await(groupRepository.rootVersions().runWith(Sink.sortedSet))
-      if (rootVersions.size <= maxVersions) {
-        ScanDone(Set.empty, Map.empty, Set.empty)
-      } else {
-        val currentRootFuture = groupRepository.root()
-        val storedPlansFuture = deploymentRepository.lazyAll().runWith(Sink.list)
-        val currentRoot = await(currentRootFuture)
-        val storedPlans = await(storedPlansFuture)
-
-        val currentlyInDeployment: SortedSet[OffsetDateTime] = storedPlans.flatMap { plan =>
-          Seq(plan.originalVersion, plan.targetVersion)
-        }(collection.breakOut)
-
-        val deletionCandidates = rootVersions.diff(currentlyInDeployment + currentRoot.version.toOffsetDateTime)
-
-        if (deletionCandidates.isEmpty) {
-          ScanDone(Set.empty, Map.empty, Set.empty)
-        } else {
-          val rootsToDelete = deletionCandidates.take(rootVersions.size - maxVersions)
-          if (rootsToDelete.isEmpty) {
-            ScanDone(Set.empty, Map.empty, Set.empty)
-          } else {
-            await(scanUnusedAppsAndPods(rootsToDelete, storedPlans, currentRoot))
-          }
-        }
-      }
+      ScanDone(Set.empty, Map.empty, Set.empty)
     }.recover {
       case NonFatal(e) =>
         logger.error(s"Error while scanning for unused roots ${Option(e.getMessage).getOrElse("")}: ", e)
@@ -262,7 +223,6 @@ private[storage] trait ScanBehavior[K, C, S] { this: FSM[State, Data] with Compa
   @SuppressWarnings(Array("all")) // async/await
   private def scanUnusedAppsAndPods(
     rootsToDelete: Set[OffsetDateTime],
-    storedPlans: Seq[StoredPlan],
     currentRoot: RootGroup): Future[ScanDone] = {
 
     def appsInUse(roots: Seq[StoredGroup]): Map[PathId, Set[OffsetDateTime]] = {
@@ -295,15 +255,7 @@ private[storage] trait ScanBehavior[K, C, S] { this: FSM[State, Data] with Compa
       podVersionsInUse.map { case (id, pods) => id -> pods.to[Set] }(collection.breakOut)
     }
 
-    def rootsInUse(): Future[Seq[StoredGroup]] = {
-      Future.sequence {
-        storedPlans.flatMap(plan =>
-          Seq(
-            groupRepository.lazyRootVersion(plan.originalVersion),
-            groupRepository.lazyRootVersion(plan.targetVersion))
-        )
-      }
-    }.map(_.flatten)
+    def rootsInUse(): Future[Seq[StoredGroup]] = Future.successful(Seq.empty)
 
     def appsExceedingMaxVersions(usedApps: Set[PathId]): Future[Map[PathId, Set[OffsetDateTime]]] = {
       Future.sequence {
@@ -417,13 +369,6 @@ private[storage] trait CompactBehavior[K, C, S] { this: FSM[State, Data] with Sc
         promise.success(Done)
         stay
       }
-    case Event(StorePlan(plan, promise), blocked: BlockedEntities) =>
-      val promise1 = Promise[Done]()
-      val promise2 = Promise[Done]()
-      self ! StoreRoot(StoredGroup(plan.original), promise1)
-      self ! StoreRoot(StoredGroup(plan.target), promise2)
-      promise.completeWith(Future.sequence(Seq(promise1.future, promise2.future)).map(_ => Done))
-      stay
   }
 
   @SuppressWarnings(Array("all")) // async/await
@@ -500,17 +445,15 @@ object GcActor {
     gcRequested: Boolean = false) extends Data
 
   def props[K, C, S](
-    deploymentRepository: DeploymentRepositoryImpl[K, C, S],
     groupRepository: StoredGroupRepositoryImpl[K, C, S],
     appRepository: AppRepositoryImpl[K, C, S],
     podRepository: PodRepositoryImpl[K, C, S],
     maxVersions: Int)(implicit mat: Materializer, ctx: ExecutionContext): Props = {
-    Props(new GcActor[K, C, S](deploymentRepository, groupRepository, appRepository, podRepository, maxVersions))
+    Props(new GcActor[K, C, S](groupRepository, appRepository, podRepository, maxVersions))
   }
 
   def apply[K, C, S](
     name: String,
-    deploymentRepository: DeploymentRepositoryImpl[K, C, S],
     groupRepository: StoredGroupRepositoryImpl[K, C, S],
     appRepository: AppRepositoryImpl[K, C, S],
     podRepository: PodRepositoryImpl[K, C, S],
@@ -518,7 +461,8 @@ object GcActor {
     mat: Materializer,
     ctx: ExecutionContext,
     actorRefFactory: ActorRefFactory): ActorRef = {
-    actorRefFactory.actorOf(props(deploymentRepository, groupRepository,
+    actorRefFactory.actorOf(props(
+      groupRepository,
       appRepository, podRepository, maxVersions), name)
   }
 
@@ -544,5 +488,4 @@ object GcActor {
   case class StorePod(podId: PathId, version: Option[OffsetDateTime], promise: Promise[Done]) extends StoreEntity
   case class StoreApp(appId: PathId, version: Option[OffsetDateTime], promise: Promise[Done]) extends StoreEntity
   case class StoreRoot(root: StoredGroup, promise: Promise[Done]) extends StoreEntity
-  case class StorePlan(plan: DeploymentPlan, promise: Promise[Done]) extends StoreEntity
 }

@@ -17,7 +17,6 @@ import scala.concurrent.ExecutionContext
   */
 trait StorageModule {
   val instanceRepository: InstanceRepository
-  val deploymentRepository: DeploymentRepository
   val taskFailureRepository: TaskFailureRepository
   val groupRepository: GroupRepository
   val frameworkIdRepository: FrameworkIdRepository
@@ -47,8 +46,6 @@ object StorageModule {
 
         val taskRepository = TaskRepository.zkRepository(store)
         val instanceRepository = InstanceRepository.zkRepository(store)
-        val deploymentRepository = DeploymentRepository.zkRepository(store, groupRepository,
-          appRepository, podRepository, zk.maxVersions)
         val taskFailureRepository = TaskFailureRepository.zkRepository(store)
         val frameworkIdRepository = FrameworkIdRepository.zkRepository(store)
         val runtimeConfigurationRepository = RuntimeConfigurationRepository.zkRepository(store)
@@ -62,12 +59,11 @@ object StorageModule {
 
         val backup = PersistentStoreBackup(store)
         val migration = new Migration(zk.availableFeatures, zk.defaultNetworkName, mesosBridgeName, store, appRepository, groupRepository,
-          deploymentRepository, taskRepository, instanceRepository,
+          taskRepository, instanceRepository,
           taskFailureRepository, frameworkIdRepository, ServiceDefinitionRepository.zkRepository(store), runtimeConfigurationRepository, backup, config)
 
         StorageModuleImpl(
           instanceRepository,
-          deploymentRepository,
           taskFailureRepository,
           groupRepository,
           frameworkIdRepository,
@@ -83,8 +79,6 @@ object StorageModule {
         val taskRepository = TaskRepository.inMemRepository(store)
         val instanceRepository = InstanceRepository.inMemRepository(store)
         val groupRepository = GroupRepository.inMemRepository(store, appRepository, podRepository)
-        val deploymentRepository = DeploymentRepository.inMemRepository(store, groupRepository,
-          appRepository, podRepository, mem.maxVersions)
         val taskFailureRepository = TaskFailureRepository.inMemRepository(store)
         val frameworkIdRepository = FrameworkIdRepository.inMemRepository(store)
         val runtimeConfigurationRepository = RuntimeConfigurationRepository.inMemRepository(store)
@@ -98,12 +92,11 @@ object StorageModule {
 
         val backup = PersistentStoreBackup(store)
         val migration = new Migration(mem.availableFeatures, mem.defaultNetworkName, mesosBridgeName, store, appRepository, groupRepository,
-          deploymentRepository, taskRepository, instanceRepository,
+          taskRepository, instanceRepository,
           taskFailureRepository, frameworkIdRepository, ServiceDefinitionRepository.inMemRepository(store), runtimeConfigurationRepository, backup, config)
 
         StorageModuleImpl(
           instanceRepository,
-          deploymentRepository,
           taskFailureRepository,
           groupRepository,
           frameworkIdRepository,
@@ -118,7 +111,6 @@ object StorageModule {
 
 private[storage] case class StorageModuleImpl(
   instanceRepository: InstanceRepository,
-  deploymentRepository: DeploymentRepository,
   taskFailureRepository: TaskFailureRepository,
   groupRepository: GroupRepository,
   frameworkIdRepository: FrameworkIdRepository,

@@ -3,7 +3,6 @@ package api.v2.json
 
 import mesosphere.marathon.core.appinfo._
 import mesosphere.marathon.core.condition.Condition
-import mesosphere.marathon.core.deployment.{ DeploymentAction, DeploymentPlan, DeploymentStep, DeploymentStepInfo }
 import mesosphere.marathon.core.event._
 import mesosphere.marathon.core.health._
 import mesosphere.marathon.core.instance.Instance
@@ -52,7 +51,6 @@ trait Formats
     extends AppAndGroupFormats
     with HealthCheckFormats
     with ReadinessCheckFormats
-    with DeploymentFormats
     with EventFormats
     with PluginFormats {
 
@@ -193,60 +191,6 @@ trait Formats
   }
 }
 
-trait DeploymentFormats {
-  import Formats._
-
-  implicit lazy val ByteArrayFormat: Format[Array[Byte]] =
-    Format(
-      Reads.of[Seq[Int]].map(_.map(_.toByte).toArray),
-      Writes { xs =>
-        JsArray(xs.to[Seq].map(b => JsNumber(b.toInt)))
-      }
-    )
-
-  implicit lazy val URLToStringMapFormat: Format[Map[java.net.URL, String]] = Format(
-    Reads.of[Map[String, String]]
-      .map(
-        _.map { case (k, v) => new java.net.URL(k) -> v }
-      ),
-    Writes[Map[java.net.URL, String]] { m =>
-      Json.toJson(m)
-    }
-  )
-
-  def actionInstanceOn(runSpec: RunSpec): String = runSpec match {
-    case _: AppDefinition => "app"
-    case _: PodDefinition => "pod"
-  }
-
-  implicit lazy val DeploymentActionWrites: Writes[DeploymentAction] = Writes { action =>
-    Json.obj(
-      "action" -> DeploymentAction.actionName(action),
-      actionInstanceOn(action.runSpec) -> action.runSpec.id
-    )
-  }
-
-  implicit lazy val DeploymentStepWrites: Writes[DeploymentStep] = Json.writes[DeploymentStep]
-
-  implicit lazy val DeploymentStepInfoWrites: Writes[DeploymentStepInfo] = Writes { info =>
-    def currentAction(action: DeploymentAction): JsObject = Json.obj (
-      "action" -> DeploymentAction.actionName(action),
-      actionInstanceOn(action.runSpec) -> action.runSpec.id,
-      "readinessCheckResults" -> info.readinessChecksByApp(action.runSpec.id)
-    )
-    Json.obj(
-      "id" -> info.plan.id,
-      "version" -> info.plan.version,
-      "affectedApps" -> info.plan.affectedAppIds,
-      "affectedPods" -> info.plan.affectedPodIds,
-      "steps" -> info.plan.steps,
-      "currentActions" -> info.step.actions.map(currentAction),
-      "currentStep" -> info.stepIndex,
-      "totalSteps" -> info.plan.steps.size
-    )
-  }
-}
-
 trait EventFormats {
   import Formats._
 
@@ -268,17 +212,6 @@ trait EventFormats {
       "appDefinition" -> event.appDefinition,
       "eventType" -> event.eventType,
       "timestamp" -> event.timestamp
-    )
-  }
-
-  implicit lazy val DeploymentPlanWrites: Writes[DeploymentPlan] = Writes { plan =>
-
-    Json.obj(
-      "id" -> plan.id,
-      "original" -> Raml.toRaml[Group, raml.Group](plan.original),
-      "target" -> Raml.toRaml[Group, raml.Group](plan.target),
-      "steps" -> plan.steps,
-      "version" -> plan.version
     )
   }
 
@@ -313,11 +246,6 @@ trait EventFormats {
   implicit lazy val HealthStatusChangedWrites: Writes[HealthStatusChanged] = Json.writes[HealthStatusChanged]
   implicit lazy val GroupChangeSuccessWrites: Writes[GroupChangeSuccess] = Json.writes[GroupChangeSuccess]
   implicit lazy val GroupChangeFailedWrites: Writes[GroupChangeFailed] = Json.writes[GroupChangeFailed]
-  implicit lazy val DeploymentSuccessWrites: Writes[DeploymentSuccess] = Json.writes[DeploymentSuccess]
-  implicit lazy val DeploymentFailedWrites: Writes[DeploymentFailed] = Json.writes[DeploymentFailed]
-  implicit lazy val DeploymentStatusWrites: Writes[DeploymentStatus] = Json.writes[DeploymentStatus]
-  implicit lazy val DeploymentStepSuccessWrites: Writes[DeploymentStepSuccess] = Json.writes[DeploymentStepSuccess]
-  implicit lazy val DeploymentStepFailureWrites: Writes[DeploymentStepFailure] = Json.writes[DeploymentStepFailure]
   implicit lazy val MesosStatusUpdateEventWrites: Writes[MesosStatusUpdateEvent] = Json.writes[MesosStatusUpdateEvent]
   implicit lazy val MesosFrameworkMessageEventWrites: Writes[MesosFrameworkMessageEvent] =
     Json.writes[MesosFrameworkMessageEvent]
@@ -373,11 +301,6 @@ trait EventFormats {
     case event: UnhealthyInstanceKillEvent => Json.toJson(event)
     case event: GroupChangeSuccess => Json.toJson(event)
     case event: GroupChangeFailed => Json.toJson(event)
-    case event: DeploymentSuccess => Json.toJson(event)
-    case event: DeploymentFailed => Json.toJson(event)
-    case event: DeploymentStatus => Json.toJson(event)
-    case event: DeploymentStepSuccess => Json.toJson(event)
-    case event: DeploymentStepFailure => Json.toJson(event)
     case event: MesosStatusUpdateEvent => Json.toJson(event)
     case event: MesosFrameworkMessageEvent => Json.toJson(event)
     case event: SchedulerDisconnectedEvent => Json.toJson(event)
@@ -486,7 +409,6 @@ trait AppAndGroupFormats {
 
       val maybeJson = Seq[Option[JsObject]](
         info.maybeCounts.map(TaskCountsWrites.writes(_).as[JsObject]),
-        info.maybeDeployments.map(deployments => Json.obj("deployments" -> deployments)),
         info.maybeReadinessCheckResults.map(readiness => Json.obj("readinessCheckResults" -> readiness)),
         info.maybeTasks.map(tasks => Json.obj("tasks" -> tasks)),
         info.maybeLastTaskFailure.map(lastFailure => Json.obj("lastTaskFailure" -> lastFailure)),

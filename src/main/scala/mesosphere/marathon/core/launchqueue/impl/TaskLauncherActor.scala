@@ -298,7 +298,7 @@ private class TaskLauncherActor(
   private[this] def receiveAddCount: Receive = {
     case TaskLauncherActor.AddInstances(newRunSpec, addCount) =>
       val configChange = runSpec.isUpgrade(newRunSpec)
-      if (configChange || runSpec.needsRestart(newRunSpec) || runSpec.isOnlyScaleChange(newRunSpec)) {
+      if (configChange || runSpec.needsRestart(newRunSpec)) {
         runSpec = newRunSpec
         instancesToLaunch = addCount
 
@@ -442,7 +442,7 @@ private class TaskLauncherActor(
 
     val inFlight = inFlightInstanceOperations.size
     val launchedOrRunning = instanceMap.values.count(_.isLaunched) - inFlight
-    val instanceCountDelta = instanceMap.size + instancesToLaunch - runSpec.instances
+    val instanceCountDelta = 0
     val matchInstanceStr = if (instanceCountDelta == 0) "" else s"instance count delta $instanceCountDelta."
     s"$instancesToLaunch instancesToLaunch, $inFlight in flight, " +
       s"$launchedOrRunning confirmed. $matchInstanceStr $backoffStr"

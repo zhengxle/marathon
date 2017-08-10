@@ -16,11 +16,10 @@ import scala.concurrent.{ Await, ExecutionContext }
   */
 class GroupManagerModule(
     config: GroupManagerConfig,
-    scheduler: Provider[DeploymentService],
     groupRepo: GroupRepository)(implicit ctx: ExecutionContext, eventStream: EventStream) {
 
   val groupManager: GroupManager = {
-    val groupManager = new GroupManagerImpl(config, Await.result(groupRepo.root(), config.zkTimeoutDuration), groupRepo, scheduler)
+    val groupManager = new GroupManagerImpl(config, Await.result(groupRepo.root(), config.zkTimeoutDuration), groupRepo)
 
     // We've already released metrics using these names, so we can't use the Metrics.* methods
     Kamon.metrics.gauge("service.mesosphere.marathon.app.count")(

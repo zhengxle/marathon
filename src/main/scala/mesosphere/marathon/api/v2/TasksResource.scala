@@ -117,24 +117,16 @@ class TasksResource @Inject() (
   @Path("delete")
   @SuppressWarnings(Array("all")) /* async/await */
   def killTasks(
-    @QueryParam("scale")@DefaultValue("false") scale: Boolean,
     @QueryParam("force")@DefaultValue("false") force: Boolean,
     @QueryParam("wipe")@DefaultValue("false") wipe: Boolean,
     body: Array[Byte],
     @Context req: HttpServletRequest): Response = authenticated(req) { implicit identity =>
-
-    if (scale && wipe) throw new BadRequestException("You cannot use scale and wipe at the same time.")
 
     val taskIds = (Json.parse(body) \ "ids").as[Set[String]]
     val tasksIdToAppId: Map[Instance.Id, PathId] = taskIds.map { id =>
       try { Task.Id(id).instanceId -> Task.Id.runSpecId(id) }
       catch { case e: MatchError => throw new BadRequestException(s"Invalid task id '$id'. [${e.getMessage}]") }
     }(collection.breakOut)
-
-    def scaleAppWithKill(toKill: Map[PathId, Seq[Instance]]): Future[Response] = async {
-      val killAndScale = await(taskKiller.killAndScale(toKill, force))
-      deploymentResult(killAndScale)
-    }
 
     def doKillTasks(toKill: Map[PathId, Seq[Instance]]): Future[Response] = async {
       val affectedApps = tasksIdToAppId.values.flatMap(appId => groupManager.app(appId))(collection.breakOut)
@@ -159,10 +151,7 @@ class TasksResource @Inject() (
       val tasksByAppId: Map[PathId, Seq[Instance]] = maybeInstances.flatten
         .groupBy(instance => instance.instanceId.runSpecId)
         .map { case (appId, instances) => appId -> instances.to[Seq] }(collection.breakOut)
-      val response =
-        if (scale) scaleAppWithKill(tasksByAppId)
-        else doKillTasks(tasksByAppId)
-      await(response)
+      await(doKillTasks(tasksByAppId))
     }
     result(futureResponse)
   }

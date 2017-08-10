@@ -37,17 +37,14 @@ trait RunSpec extends plugin.RunSpec {
   val labels: Map[String, String]
   val acceptedResourceRoles: Set[String]
   val secrets: Map[String, Secret]
-  val instances: Int
   val constraints: Set[Constraint]
   val version: Timestamp
   val resources: Resources
   val backoffStrategy: BackoffStrategy
   val residency: Option[Residency] = Option.empty[Residency]
-  val upgradeStrategy: UpgradeStrategy
   def withInstances(instances: Int): RunSpec
   def isUpgrade(to: RunSpec): Boolean
   def needsRestart(to: RunSpec): Boolean
-  def isOnlyScaleChange(to: RunSpec): Boolean
   val versionInfo: VersionInfo
   val container = Option.empty[Container]
   val cmd = Option.empty[String]

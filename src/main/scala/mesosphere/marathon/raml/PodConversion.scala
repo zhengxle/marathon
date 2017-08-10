@@ -21,10 +21,6 @@ trait PodConversion extends NetworkConversion with ConstraintConversion with Con
     val resourceRoles = podDef.scheduling.flatMap(_.placement)
       .fold(Set.empty[String])(_.acceptedResourceRoles.toSet)
 
-    val upgradeStrategy = podDef.scheduling.flatMap(_.upgrade).fold(DefaultUpgradeStrategy) { raml =>
-      state.UpgradeStrategy(raml.minimumHealthCapacity, raml.maximumOverCapacity)
-    }
-
     val unreachableStrategy = podDef.scheduling.flatMap(_.unreachableStrategy).fold(DefaultUnreachableStrategy)(Raml.fromRaml(_))
     val killSelection: state.KillSelection = podDef.scheduling.fold(state.KillSelection.DefaultKillSelection) {
       _.killSelection.fold(state.KillSelection.DefaultKillSelection)(Raml.fromRaml(_))
@@ -56,7 +52,6 @@ trait PodConversion extends NetworkConversion with ConstraintConversion with Con
       podVolumes = podDef.volumes.map(Raml.fromRaml(_)),
       networks = networks,
       backoffStrategy = backoffStrategy,
-      upgradeStrategy = upgradeStrategy,
       executorResources = executorResources.fromRaml,
       unreachableStrategy = unreachableStrategy,
       killSelection = killSelection
@@ -64,18 +59,12 @@ trait PodConversion extends NetworkConversion with ConstraintConversion with Con
   }
 
   implicit val podRamlWriter: Writes[PodDefinition, Pod] = Writes { pod =>
-
-    val ramlUpgradeStrategy = PodUpgradeStrategy(
-      pod.upgradeStrategy.minimumHealthCapacity,
-      pod.upgradeStrategy.maximumOverCapacity)
-
     val ramlBackoffStrategy = PodSchedulingBackoffStrategy(
       backoff = pod.backoffStrategy.backoff.toMillis.toDouble / 1000.0,
       maxLaunchDelay = pod.backoffStrategy.maxLaunchDelay.toMillis.toDouble / 1000.0,
       backoffFactor = pod.backoffStrategy.factor)
     val schedulingPolicy = PodSchedulingPolicy(
       Some(ramlBackoffStrategy),
-      Some(ramlUpgradeStrategy),
       Some(PodPlacementPolicy(
         pod.constraints.toRaml[Set[Constraint]],
         pod.acceptedResourceRoles.toIndexedSeq)),

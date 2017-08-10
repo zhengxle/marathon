@@ -13,7 +13,7 @@ import mesosphere.marathon.core.storage.store.impl.memory.{ Identity, RamId }
 import mesosphere.marathon.core.task.Task
 import mesosphere.marathon.raml.RuntimeConfiguration
 import mesosphere.marathon.state.{ AppDefinition, PathId, TaskFailure }
-import mesosphere.marathon.storage.repository.{ StoredGroup, StoredPlan }
+import mesosphere.marathon.storage.repository.StoredGroup
 import mesosphere.util.state.FrameworkId
 
 trait InMemoryStoreSerialization {
@@ -60,16 +60,6 @@ trait InMemoryStoreSerialization {
       override def fromStorageId(key: RamId): Task.Id = Task.Id(key.id)
       override val hasVersions = false
       override def version(v: Task): OffsetDateTime = OffsetDateTime.MIN
-    }
-
-  implicit val deploymentResolver: IdResolver[String, StoredPlan, String, RamId] =
-    new IdResolver[String, StoredPlan, String, RamId] {
-      override def toStorageId(id: String, version: Option[OffsetDateTime]): RamId =
-        RamId(category, id, version)
-      override val category: String = "deployment"
-      override def fromStorageId(key: RamId): String = key.id
-      override val hasVersions = false
-      override def version(v: StoredPlan): OffsetDateTime = OffsetDateTime.MIN
     }
 
   implicit def taskFailureResolver: IdResolver[PathId, TaskFailure, String, RamId] =

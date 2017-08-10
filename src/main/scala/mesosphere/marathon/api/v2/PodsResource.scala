@@ -92,7 +92,6 @@ class PodsResource @Inject() (
           Events.maybePost(PodEvent(req.getRemoteAddr, req.getRequestURI, PodEvent.Created))
 
           Response.created(new URI(pod.id.toString))
-            .header(RestResource.DeploymentHeader, deployment.id)
             .entity(marshal(pod))
             .build()
         }
@@ -126,7 +125,6 @@ class PodsResource @Inject() (
           val builder = Response
             .ok(new URI(pod.id.toString))
             .entity(marshal(pod))
-            .header(RestResource.DeploymentHeader, deployment.id)
           builder.build()
         }
       }
@@ -166,12 +164,10 @@ class PodsResource @Inject() (
     withValid(id.toRootPath) { id =>
       withAuthorization(DeleteRunSpec, podSystem.find(id), unknownPod(id)) { pod =>
 
-        val deployment = result(podSystem.delete(id, force))
+        result(podSystem.delete(id, force))
 
         Events.maybePost(PodEvent(req.getRemoteAddr, req.getRequestURI, PodEvent.Deleted))
         Response.status(Status.ACCEPTED)
-          .location(new URI(deployment.id)) // TODO(jdef) probably want a different header here since deployment != pod
-          .header(RestResource.DeploymentHeader, deployment.id)
           .build()
       }
     }

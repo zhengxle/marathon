@@ -3,13 +3,11 @@ package api
 
 import java.net.URI
 import javax.ws.rs.core.Response
-import javax.ws.rs.core.Response.{ ResponseBuilder, Status }
+import javax.ws.rs.core.Response.Status
 
 import akka.http.scaladsl.model.StatusCodes
 import com.wix.accord._
 import mesosphere.marathon.api.v2.Validation._
-import mesosphere.marathon.api.v2.json.Formats._
-import mesosphere.marathon.core.deployment.DeploymentPlan
 import mesosphere.marathon.state.{ PathId, Timestamp }
 import play.api.data.validation.ValidationError
 import play.api.libs.json.Json.JsValueWrapper
@@ -37,12 +35,6 @@ trait RestResource {
 
   protected def notFound(message: String): Response = {
     Response.status(Status.NOT_FOUND).entity(jsonObjString("message" -> message)).build()
-  }
-
-  protected def deploymentResult(d: DeploymentPlan, response: ResponseBuilder = Response.ok()) = {
-    response.entity(jsonObjString("version" -> d.version, "deploymentId" -> d.id))
-      .header(RestResource.DeploymentHeader, d.id)
-      .build()
   }
 
   protected def status(code: Status) = Response.status(code).build()
@@ -106,7 +98,6 @@ trait RestResource {
 }
 
 object RestResource {
-  val DeploymentHeader = "Marathon-Deployment-Id"
   val ActionHeader = "Marathon-Action-Id"
 
   def entity(err: scala.collection.Seq[(JsPath, scala.collection.Seq[ValidationError])]): JsValue = {

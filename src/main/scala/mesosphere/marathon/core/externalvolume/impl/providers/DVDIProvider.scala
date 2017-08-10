@@ -3,7 +3,6 @@ package core.externalvolume.impl.providers
 
 import com.wix.accord._
 import com.wix.accord.dsl._
-import mesosphere.marathon.api.v2.validation.SchedulingValidation
 import mesosphere.marathon.core.externalvolume.impl.providers.OptionSupport._
 import mesosphere.marathon.core.externalvolume.impl.{ ExternalVolumeProvider, ExternalVolumeValidations }
 import mesosphere.marathon.raml.{ App, AppExternalVolume, EngineType, ReadMode, Container => AppContainer }
@@ -129,13 +128,6 @@ private[impl] object DVDIProviderValidations extends ExternalVolumeValidations {
   }
 
   override lazy val ramlApp = {
-    val haveOnlyOneInstance: Validator[App] =
-      isTrue[App](
-        (app: App) => s"Number of instances is limited to 1 when declaring DVDI volumes in app [$app.id]"
-      ) {
-          _.instances <= 1
-        }
-
     case object haveUniqueExternalVolumeNames extends Validator[App] {
       override def apply(app: App): Result = {
         val conflicts = volumeNameCounts(app).filter { case (volumeName, number) => number > 1 }.keys
@@ -185,20 +177,11 @@ private[impl] object DVDIProviderValidations extends ExternalVolumeValidations {
 
     validator[App] { app =>
       app should haveUniqueExternalVolumeNames
-      app should haveOnlyOneInstance
       app.container is valid(optional(validContainer))
-      app.upgradeStrategy is optional(SchedulingValidation.validForResidentTasks)
     }
   }
 
   override lazy val app = {
-    val haveOnlyOneInstance: Validator[AppDefinition] =
-      isTrue[AppDefinition](
-        (app: AppDefinition) => s"Number of instances is limited to 1 when declaring DVDI volumes in app [$app.id]"
-      ) {
-          _.instances <= 1
-        }
-
     case object haveUniqueExternalVolumeNames extends Validator[AppDefinition] {
       override def apply(app: AppDefinition): Result = {
         val conflicts = volumeNameCounts(app).filter { case (volumeName, number) => number > 1 }.keys
@@ -246,9 +229,7 @@ private[impl] object DVDIProviderValidations extends ExternalVolumeValidations {
 
     validator[AppDefinition] { app =>
       app should haveUniqueExternalVolumeNames
-      app should haveOnlyOneInstance
       app.container is valid(optional(validContainer))
-      app.upgradeStrategy is valid(UpgradeStrategy.validForResidentTasks)
     }
   }
 

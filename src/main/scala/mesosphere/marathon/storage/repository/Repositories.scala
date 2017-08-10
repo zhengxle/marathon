@@ -3,13 +3,11 @@ package storage.repository
 
 import java.time.OffsetDateTime
 
-import akka.actor.ActorRefFactory
 import akka.http.scaladsl.marshalling.Marshaller
 import akka.http.scaladsl.unmarshalling.Unmarshaller
 import akka.stream.Materializer
 import akka.stream.scaladsl.Source
 import akka.{ Done, NotUsed }
-import mesosphere.marathon.core.deployment.DeploymentPlan
 import mesosphere.marathon.core.instance.Instance
 import mesosphere.marathon.core.pod.PodDefinition
 import mesosphere.marathon.core.storage.repository._
@@ -109,37 +107,6 @@ object PodRepository {
   )(implicit ctx: ExecutionContext): PodRepositoryImpl[RamId, String, Identity] = {
     import mesosphere.marathon.storage.store.InMemoryStoreSerialization._
     new PodRepositoryImpl(persistenceStore)
-  }
-}
-
-trait DeploymentRepository extends Repository[String, DeploymentPlan]
-
-object DeploymentRepository {
-
-  def zkRepository(
-    persistenceStore: PersistenceStore[ZkId, String, ZkSerialized],
-    groupRepository: StoredGroupRepositoryImpl[ZkId, String, ZkSerialized],
-    appRepository: AppRepositoryImpl[ZkId, String, ZkSerialized],
-    podRepository: PodRepositoryImpl[ZkId, String, ZkSerialized],
-    maxVersions: Int)(implicit
-    ctx: ExecutionContext,
-    actorRefFactory: ActorRefFactory,
-    mat: Materializer): DeploymentRepositoryImpl[ZkId, String, ZkSerialized] = {
-    import mesosphere.marathon.storage.store.ZkStoreSerialization._
-    new DeploymentRepositoryImpl(persistenceStore, groupRepository, appRepository, podRepository, maxVersions)
-  }
-
-  def inMemRepository(
-    persistenceStore: PersistenceStore[RamId, String, Identity],
-    groupRepository: StoredGroupRepositoryImpl[RamId, String, Identity],
-    appRepository: AppRepositoryImpl[RamId, String, Identity],
-    podRepository: PodRepositoryImpl[RamId, String, Identity],
-    maxVersions: Int)(implicit
-    ctx: ExecutionContext,
-    actorRefFactory: ActorRefFactory,
-    mat: Materializer): DeploymentRepositoryImpl[RamId, String, Identity] = {
-    import mesosphere.marathon.storage.store.InMemoryStoreSerialization._
-    new DeploymentRepositoryImpl(persistenceStore, groupRepository, appRepository, podRepository, maxVersions)
   }
 }
 

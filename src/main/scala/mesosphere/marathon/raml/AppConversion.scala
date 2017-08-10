@@ -56,7 +56,6 @@ trait AppConversion extends ConstraintConversion with EnvVarConversion with Heal
       fetch = app.fetch.toRaml,
       gpus = app.resources.gpus,
       healthChecks = app.healthChecks.toRaml,
-      instances = app.instances,
       ipAddress = None, // deprecated field
       labels = app.labels,
       maxLaunchDelaySeconds = app.backoffStrategy.maxLaunchDelay.toSeconds.toInt,
@@ -69,7 +68,6 @@ trait AppConversion extends ConstraintConversion with EnvVarConversion with Heal
       requirePorts = app.requirePorts,
       secrets = app.secrets.toRaml,
       taskKillGracePeriodSeconds = app.taskKillGracePeriod.map(_.toSeconds.toInt),
-      upgradeStrategy = Some(app.upgradeStrategy.toRaml),
       uris = None, // deprecated field
       user = app.user,
       version = Some(app.versionInfo.version.toOffsetDateTime),
@@ -127,7 +125,6 @@ trait AppConversion extends ConstraintConversion with EnvVarConversion with Heal
   implicit val appRamlReader: Reads[App, AppDefinition] = Reads[App, AppDefinition] { app =>
     val selectedStrategy = ResidencyAndUpgradeStrategy(
       app.residency.map(Raml.fromRaml(_)),
-      app.upgradeStrategy.map(Raml.fromRaml(_)),
       hasPersistentVolumes = app.container.exists(_.volumes.existsAn[AppPersistentVolume]),
       hasExternalVolumes = app.container.exists(_.volumes.existsAn[AppExternalVolume])
     )
@@ -146,7 +143,6 @@ trait AppConversion extends ConstraintConversion with EnvVarConversion with Heal
       args = app.args,
       user = app.user,
       env = Raml.fromRaml(app.env),
-      instances = app.instances,
       resources = resources(Some(app.cpus), Some(app.mem), Some(app.disk), Some(app.gpus)),
       executor = app.executor,
       constraints = app.constraints.map(Raml.fromRaml(_))(collection.breakOut),
@@ -159,7 +155,6 @@ trait AppConversion extends ConstraintConversion with EnvVarConversion with Heal
       readinessChecks = app.readinessChecks.map(Raml.fromRaml(_)),
       taskKillGracePeriod = app.taskKillGracePeriodSeconds.map(_.second),
       dependencies = app.dependencies.map(PathId(_))(collection.breakOut),
-      upgradeStrategy = selectedStrategy.upgradeStrategy,
       labels = app.labels,
       acceptedResourceRoles = app.acceptedResourceRoles.getOrElse(AppDefinition.DefaultAcceptedResourceRoles),
       networks = app.networks.map(Raml.fromRaml(_)),
@@ -183,7 +178,6 @@ trait AppConversion extends ConstraintConversion with EnvVarConversion with Heal
       args = update.args.getOrElse(app.args),
       user = update.user.orElse(app.user),
       env = update.env.getOrElse(app.env),
-      instances = update.instances.getOrElse(app.instances),
       cpus = update.cpus.getOrElse(app.cpus),
       mem = update.mem.getOrElse(app.mem),
       disk = update.disk.getOrElse(app.disk),
@@ -200,7 +194,6 @@ trait AppConversion extends ConstraintConversion with EnvVarConversion with Heal
       healthChecks = update.healthChecks.getOrElse(app.healthChecks),
       readinessChecks = update.readinessChecks.getOrElse(app.readinessChecks),
       dependencies = update.dependencies.getOrElse(app.dependencies),
-      upgradeStrategy = update.upgradeStrategy.orElse(app.upgradeStrategy),
       labels = update.labels.getOrElse(app.labels),
       acceptedResourceRoles = update.acceptedResourceRoles.orElse(app.acceptedResourceRoles),
       networks = update.networks.getOrElse(app.networks),
@@ -325,7 +318,6 @@ trait AppConversion extends ConstraintConversion with EnvVarConversion with Heal
       executor = service.whenOrElse(_.hasExecutor, _.getExecutor, App.DefaultExecutor),
       fetch = if (service.hasCmd && service.getCmd.getUrisCount > 0) service.getCmd.getUrisList.toRaml else App.DefaultFetch,
       healthChecks = service.whenOrElse(_.getHealthChecksCount > 0, _.getHealthChecksList.toRaml.to[Set], App.DefaultHealthChecks),
-      instances = service.whenOrElse(_.hasInstances, _.getInstances, App.DefaultInstances),
       labels = service.getLabelsList.map { label => label.getKey -> label.getValue }(collection.breakOut),
       maxLaunchDelaySeconds = service.whenOrElse(_.hasMaxLaunchDelay, m => (m.getMaxLaunchDelay / 1000L).toInt, App.DefaultMaxLaunchDelaySeconds),
       mem = resourcesMap.getOrElse(Resource.MEM, App.DefaultMem),
@@ -340,7 +332,6 @@ trait AppConversion extends ConstraintConversion with EnvVarConversion with Heal
       requirePorts = service.whenOrElse(_.hasRequirePorts, _.getRequirePorts, App.DefaultRequirePorts),
       secrets = service.whenOrElse(_.getSecretsCount > 0, _.getSecretsList.map(_.toRaml)(collection.breakOut), App.DefaultSecrets),
       taskKillGracePeriodSeconds = service.when(_.hasTaskKillGracePeriod, _.getTaskKillGracePeriod.toInt).orElse(App.DefaultTaskKillGracePeriodSeconds),
-      upgradeStrategy = service.when(_.hasUpgradeStrategy, _.getUpgradeStrategy.toRaml).orElse(App.DefaultUpgradeStrategy),
       uris = None, // not stored in protobuf
       user = if (service.hasCmd && service.getCmd.hasUser) Option(service.getCmd.getUser) else App.DefaultUser,
       version = version,
@@ -376,7 +367,6 @@ trait AppConversion extends ConstraintConversion with EnvVarConversion with Heal
       args = Some(app.args),
       user = app.user,
       env = Some(app.env),
-      instances = Some(app.instances),
       cpus = Some(app.cpus),
       mem = Some(app.mem),
       disk = Some(app.disk),
@@ -394,7 +384,6 @@ trait AppConversion extends ConstraintConversion with EnvVarConversion with Heal
       readinessChecks = Some(app.readinessChecks),
       taskKillGracePeriodSeconds = app.taskKillGracePeriodSeconds,
       dependencies = Some(app.dependencies),
-      upgradeStrategy = app.upgradeStrategy,
       labels = Some(app.labels),
       acceptedResourceRoles = app.acceptedResourceRoles,
       residency = app.residency,
@@ -414,25 +403,18 @@ trait AppConversion extends ConstraintConversion with EnvVarConversion with Heal
 
 object AppConversion extends AppConversion {
 
-  case class ResidencyAndUpgradeStrategy(residency: Option[Residency], upgradeStrategy: state.UpgradeStrategy)
+  case class ResidencyAndUpgradeStrategy(residency: Option[Residency])
 
   object ResidencyAndUpgradeStrategy {
     def apply(
       residency: Option[Residency],
-      upgradeStrategy: Option[state.UpgradeStrategy],
       hasPersistentVolumes: Boolean,
       hasExternalVolumes: Boolean): ResidencyAndUpgradeStrategy = {
-
-      import state.UpgradeStrategy.{ empty, forResidentTasks }
 
       val residencyOrDefault: Option[Residency] =
         residency.orElse(if (hasPersistentVolumes) Some(Residency.default) else None)
 
-      val selectedUpgradeStrategy = upgradeStrategy.getOrElse {
-        if (residencyOrDefault.isDefined || hasExternalVolumes) forResidentTasks else empty
-      }
-
-      ResidencyAndUpgradeStrategy(residencyOrDefault, selectedUpgradeStrategy)
+      ResidencyAndUpgradeStrategy(residencyOrDefault)
     }
   }
 }

@@ -36,8 +36,6 @@ case class AppDefinition(
 
   env: Map[String, EnvVarValue] = AppDefinition.DefaultEnv,
 
-  instances: Int = App.DefaultInstances,
-
   resources: Resources = Apps.DefaultResources,
 
   executor: String = App.DefaultExecutor,
@@ -61,8 +59,6 @@ case class AppDefinition(
   taskKillGracePeriod: Option[FiniteDuration] = AppDefinition.DefaultTaskKillGracePeriod,
 
   dependencies: Set[PathId] = AppDefinition.DefaultDependencies,
-
-  upgradeStrategy: UpgradeStrategy = AppDefinition.DefaultUpgradeStrategy,
 
   labels: Map[String, String] = AppDefinition.DefaultLabels,
 
@@ -149,7 +145,6 @@ case class AppDefinition(
     val builder = Protos.ServiceDefinition.newBuilder
       .setId(id.toString)
       .setCmd(commandInfo)
-      .setInstances(instances)
       .addAllPortDefinitions(portDefinitions.map(PortDefinitionSerializer.toProto).asJava)
       .setRequirePorts(requirePorts)
       .setBackoff(backoffStrategy.backoff.toMillis)
@@ -162,13 +157,13 @@ case class AppDefinition(
       .addResources(diskResource)
       .addResources(gpusResource)
       .addAllHealthChecks(healthChecks.map(_.toProto).asJava)
-      .setUpgradeStrategy(upgradeStrategy.toProto)
       .addAllDependencies(dependencies.map(_.toString).asJava)
       .addAllLabels(appLabels.asJava)
       .addAllSecrets(secrets.map(SecretsSerializer.toProto).asJava)
       .addAllEnvVarReferences(env.flatMap(EnvVarRefSerializer.toProto).asJava)
       .setUnreachableStrategy(unreachableStrategy.toProto)
       .setKillSelection(killSelection.toProto)
+      .setInstances(0)
 
     tty.filter(tty => tty).foreach(builder.setTty(_))
     networks.foreach { network => builder.addNetworks(Network.toProto(network)) }
@@ -195,7 +190,7 @@ case class AppDefinition(
     builder.build
   }
 
-  override def withInstances(instances: Int): RunSpec = copy(instances = instances)
+  override def withInstances(instances: Int): RunSpec = copy()
 
   def mergeFromProto(proto: Protos.ServiceDefinition): AppDefinition = {
     val envMap: Map[String, EnvVarValue] = EnvVarValue(
@@ -249,7 +244,6 @@ case class AppDefinition(
       cmd = commandOption,
       args = argsOption,
       executor = proto.getExecutor,
-      instances = proto.getInstances,
       portDefinitions = portDefinitions,
       requirePorts = proto.getRequirePorts,
       backoffStrategy = BackoffStrategy(
@@ -274,9 +268,6 @@ case class AppDefinition(
       else None,
       labels = proto.getLabelsList.map { p => p.getKey -> p.getValue }(collection.breakOut),
       versionInfo = versionInfoFromProto,
-      upgradeStrategy =
-        if (proto.hasUpgradeStrategy) UpgradeStrategy.fromProto(proto.getUpgradeStrategy)
-        else UpgradeStrategy.empty,
       dependencies = proto.getDependenciesList.map(PathId(_))(collection.breakOut),
       networks = if (networks.isEmpty) AppDefinition.DefaultNetworks else networks,
       residency = residencyOption,
@@ -304,11 +295,6 @@ case class AppDefinition(
   }
 
   /**
-    * Returns whether this is a scaling change only.
-    */
-  def isOnlyScaleChange(to: RunSpec): Boolean = !isUpgrade(to) && (instances != to.instances)
-
-  /**
     * True if the given app definition is a change to the current one in terms of runtime characteristics
     * of all deployed tasks of the current app, otherwise false.
     */
@@ -330,7 +316,6 @@ case class AppDefinition(
           healthChecks != to.healthChecks ||
           taskKillGracePeriod != to.taskKillGracePeriod ||
           dependencies != to.dependencies ||
-          upgradeStrategy != to.upgradeStrategy ||
           labels != to.labels ||
           acceptedResourceRoles != to.acceptedResourceRoles ||
           networks != to.networks ||
@@ -398,8 +383,6 @@ object AppDefinition extends GeneralPurposeCombinators {
   val DefaultTaskKillGracePeriod = Option.empty[FiniteDuration]
 
   val DefaultDependencies = Set.empty[PathId]
-
-  val DefaultUpgradeStrategy: UpgradeStrategy = UpgradeStrategy.empty
 
   val DefaultSecrets = Map.empty[String, Secret]
 
@@ -503,19 +486,9 @@ object AppDefinition extends GeneralPurposeCombinators {
       !understandsMigrationProtocol || (understandsMigrationProtocol && compliesWithMigrationApi)
     }
 
-  private val complyWithSingleInstanceLabelRules: Validator[AppDefinition] =
-    isTrue("Single instance app may only have one instance") { app =>
-      (!app.isSingleInstance) || (app.instances <= 1)
-    }
-
   private val complyWithReadinessCheckRules: Validator[AppDefinition] = validator[AppDefinition] { app =>
     app.readinessChecks.size should be <= 1
     app.readinessChecks is every(ReadinessCheck.readinessCheckValidator(app))
-  }
-
-  private val complyWithUpgradeStrategyRules: Validator[AppDefinition] = validator[AppDefinition] { appDef =>
-    (appDef.isSingleInstance is false) or (appDef.upgradeStrategy is UpgradeStrategy.validForSingleInstanceApps)
-    (appDef.isResident is false) or (appDef.upgradeStrategy is UpgradeStrategy.validForResidentTasks)
   }
 
   private def complyWithGpuRules(enabledFeatures: Set[String]): Validator[AppDefinition] =
@@ -545,18 +518,15 @@ object AppDefinition extends GeneralPurposeCombinators {
     }
 
   private def validBasicAppDefinition(enabledFeatures: Set[String]) = validator[AppDefinition] { appDef =>
-    appDef.upgradeStrategy is valid
     appDef.container.each is valid(Container.validContainer(appDef.networks, enabledFeatures))
     appDef.portDefinitions is PortDefinitions.portDefinitionsValidator
     appDef.executor should matchRegexFully("^(//cmd)|(/?[^/]+(/[^/]+)*)|$")
     appDef must containsCmdArgsOrContainer
     appDef.healthChecks is every(portIndexIsValid(appDef.portIndices))
     appDef must haveAtMostOneMesosHealthCheck
-    appDef.instances should be >= 0
     appDef.fetch is every(fetchUriIsValid)
     appDef.resources.mem as "mem" should be >= 0.0
     appDef.resources.cpus as "cpus" should be >= 0.0
-    appDef.instances should be >= 0
     appDef.resources.disk as "disk" should be >= 0.0
     appDef.resources.gpus as "gpus" should be >= 0
     appDef.secrets is valid(Secret.secretsValidator)
@@ -567,8 +537,6 @@ object AppDefinition extends GeneralPurposeCombinators {
     appDef must complyWithMigrationAPI
     appDef must complyWithReadinessCheckRules
     appDef must complyWithResidencyRules
-    appDef must complyWithSingleInstanceLabelRules
-    appDef must complyWithUpgradeStrategyRules
     appDef should requireUnreachableDisabledForResidentTasks
     // constraints are only validated in RAML layer
     appDef.unreachableStrategy is valid
@@ -614,7 +582,6 @@ object AppDefinition extends GeneralPurposeCombinators {
     validator[AppDefinition] { app =>
       app should changeNoVolumes
       app should changeNoResources
-      app.upgradeStrategy is UpgradeStrategy.validForResidentTasks
     }
   }
 

@@ -5,7 +5,6 @@ import javax.inject.Inject
 
 import akka.Done
 import mesosphere.marathon.core.async.ExecutionContexts.global
-import mesosphere.marathon.core.deployment.DeploymentPlan
 import mesosphere.marathon.core.group.GroupManager
 import mesosphere.marathon.core.instance.Instance
 import mesosphere.marathon.core.instance.update.InstanceUpdateOperation
@@ -73,49 +72,6 @@ class TaskKiller @Inject() (
             Done
         }
       }
-    }
-  }
-
-  @SuppressWarnings(Array("all")) // async/await
-  def killAndScale(
-    appId: PathId,
-    findToKill: (Seq[Instance] => Seq[Instance]),
-    force: Boolean)(implicit identity: Identity): Future[DeploymentPlan] = async {
-    val instances = await(instanceTracker.specInstances(appId))
-    val launchedInstances = instances.filter(_.isLaunched)
-    val instancesToKill = findToKill(launchedInstances)
-    await(killAndScale(Map(appId -> instancesToKill), force))
-  }
-
-  @SuppressWarnings(Array("all")) // async/await
-  def killAndScale(
-    appInstances: Map[PathId, Seq[Instance]],
-    force: Boolean)(implicit identity: Identity): Future[DeploymentPlan] = {
-    def scaleApp(app: AppDefinition): AppDefinition = {
-      checkAuthorization(UpdateRunSpec, app)
-      appInstances.get(app.id).fold(app) { instances =>
-        // only count active instances that did not already receive a kill request.
-        val toKillCount = instances.count(i => i.isActive && !i.isKilling)
-        // make sure we never scale below zero instances.
-        app.copy(instances = math.max(0, app.instances - toKillCount))
-      }
-    }
-
-    val version = Timestamp.now()
-
-    def killDeployment = groupManager.updateRoot(
-      PathId.empty,
-      _.updateTransitiveApps(PathId.empty, scaleApp, version),
-      version = version,
-      force = force,
-      toKill = appInstances
-    )
-
-    async {
-      val allInstances = await(instanceTracker.instancesBySpec()).instancesMap
-      //TODO: The exception does not take multiple ids.
-      appInstances.keys.find(!allInstances.contains(_)).map(id => throw PathNotFoundException(id))
-      await(killDeployment)
     }
   }
 }

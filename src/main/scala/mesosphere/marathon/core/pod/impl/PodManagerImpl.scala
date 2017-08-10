@@ -1,9 +1,8 @@
 package mesosphere.marathon
 package core.pod.impl
 
-import akka.NotUsed
+import akka.{ Done, NotUsed }
 import akka.stream.scaladsl.Source
-import mesosphere.marathon.core.deployment.DeploymentPlan
 import mesosphere.marathon.core.group.GroupManager
 import mesosphere.marathon.core.pod.{ PodDefinition, PodManager }
 import mesosphere.marathon.state.{ PathId, Timestamp }
@@ -16,7 +15,7 @@ case class PodManagerImpl(groupManager: GroupManager) extends PodManager {
 
   override def ids(): Set[PathId] = groupManager.rootGroup().transitivePodsById.keySet
 
-  def create(p: PodDefinition, force: Boolean): Future[DeploymentPlan] = {
+  def create(p: PodDefinition, force: Boolean): Future[Done] = {
     def createOrThrow(opt: Option[PodDefinition]) = opt
       .map(_ => throw ConflictingChangeException(s"A pod with id [${p.id}] already exists."))
       .getOrElse(p)
@@ -29,10 +28,10 @@ case class PodManagerImpl(groupManager: GroupManager) extends PodManager {
 
   def find(id: PathId): Option[PodDefinition] = groupManager.pod(id)
 
-  def update(p: PodDefinition, force: Boolean): Future[DeploymentPlan] =
+  def update(p: PodDefinition, force: Boolean): Future[Done] =
     groupManager.updatePod(p.id, _ => p, p.version, force)
 
-  def delete(id: PathId, force: Boolean): Future[DeploymentPlan] = {
+  def delete(id: PathId, force: Boolean): Future[Done] = {
     groupManager.updateRoot(id.parent, _.removePod(id), force = force)
   }
 

@@ -4,14 +4,12 @@ import java.util.concurrent.CountDownLatch
 import java.util.{ Timer, TimerTask }
 import javax.inject.{ Inject, Named }
 
-import akka.Done
 import akka.actor.{ ActorRef, ActorSystem }
 import akka.stream.Materializer
 import akka.util.Timeout
 import com.google.common.util.concurrent.AbstractExecutionThreadService
 import mesosphere.marathon.MarathonSchedulerActor._
 import mesosphere.marathon.core.base.toRichRuntime
-import mesosphere.marathon.core.deployment.{ DeploymentManager, DeploymentPlan, DeploymentStepInfo }
 import mesosphere.marathon.core.election.{ ElectionCandidate, ElectionService }
 import mesosphere.marathon.core.group.GroupManager
 import mesosphere.marathon.core.heartbeat._
@@ -20,7 +18,6 @@ import mesosphere.marathon.core.leadership.LeadershipCoordinator
 import mesosphere.marathon.state.{ AppDefinition, PathId, Timestamp }
 import mesosphere.marathon.storage.migration.Migration
 import mesosphere.marathon.stream.Sink
-import mesosphere.util.PromiseActor
 import org.apache.mesos.SchedulerDriver
 import org.slf4j.LoggerFactory
 
@@ -45,23 +42,6 @@ trait PrePostDriverCallback {
 }
 
 /**
-  * DeploymentService provides methods to deploy plans.
-  */
-// TODO (AD): do we need this trait?
-trait DeploymentService {
-  /**
-    * Deploy a plan.
-    * @param plan the plan to deploy.
-    * @param force only one deployment can be applied at a time. With this flag
-    *              one can control, to stop a current deployment and start a new one.
-    * @return a failed future if the deployment failed.
-    */
-  def deploy(plan: DeploymentPlan, force: Boolean = false): Future[Done]
-
-  def listRunningDeployments(): Future[Seq[DeploymentStepInfo]]
-}
-
-/**
   * Wrapper class for the scheduler
   */
 class MarathonSchedulerService @Inject() (
@@ -73,10 +53,9 @@ class MarathonSchedulerService @Inject() (
   driverFactory: SchedulerDriverFactory,
   system: ActorSystem,
   migration: Migration,
-  deploymentManager: DeploymentManager,
   @Named("schedulerActor") schedulerActor: ActorRef,
   @Named(ModuleNames.MESOS_HEARTBEAT_ACTOR) mesosHeartbeatActor: ActorRef)(implicit mat: Materializer)
-    extends AbstractExecutionThreadService with ElectionCandidate with DeploymentService {
+    extends AbstractExecutionThreadService with ElectionCandidate {
 
   import mesosphere.marathon.core.async.ExecutionContexts.global
 
@@ -105,23 +84,8 @@ class MarathonSchedulerService @Inject() (
 
   protected def newTimer() = new Timer("marathonSchedulerTimer")
 
-  def deploy(plan: DeploymentPlan, force: Boolean = false): Future[Done] = {
-    log.info(s"Deploy plan with force=$force:\n$plan ")
-    val future: Future[Any] = PromiseActor.askWithoutTimeout(system, schedulerActor, Deploy(plan, force))
-    future.map {
-      case DeploymentStarted(_) => Done
-      case DeploymentFailed(_, t) => throw t
-    }
-  }
-
-  def cancelDeployment(plan: DeploymentPlan): Unit =
-    schedulerActor ! CancelDeployment(plan)
-
   def listAppVersions(appId: PathId): Seq[Timestamp] =
     Await.result(groupManager.appVersions(appId).map(Timestamp(_)).runWith(Sink.seq), config.zkTimeoutDuration)
-
-  def listRunningDeployments(): Future[Seq[DeploymentStepInfo]] =
-    deploymentManager.list()
 
   def getApp(appId: PathId, version: Timestamp): Option[AppDefinition] = {
     Await.result(groupManager.appVersion(appId, version.toOffsetDateTime), config.zkTimeoutDuration)
