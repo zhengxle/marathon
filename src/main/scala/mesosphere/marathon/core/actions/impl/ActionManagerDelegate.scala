@@ -1,14 +1,12 @@
 package mesosphere.marathon
 package core.actions.impl
 
-import akka.Done
 import akka.actor.ActorRef
 import akka.pattern.ask
 import akka.util.Timeout
 import com.typesafe.scalalogging.StrictLogging
 import mesosphere.marathon.core.actions.impl.ActionManagerActor.ActionHandlerResult
 import mesosphere.marathon.core.actions.{ Action, ActionManager }
-import mesosphere.marathon.core.launchqueue.LaunchQueueConfig
 
 import scala.concurrent.duration._
 import scala.concurrent.{ Await, Future }
@@ -16,14 +14,13 @@ import scala.reflect.ClassTag
 import scala.util.control.NonFatal
 
 private[actions] class ActionManagerDelegate(
-    config: LaunchQueueConfig,
     actorRef: ActorRef) extends ActionManager with StrictLogging {
 
   // When purging, we wait for the TaskLauncherActor to shut down. This actor will wait for
   // in-flight task op notifications before complying, therefore we need to adjust the timeout accordingly.
-  val purgeTimeout: Timeout = config.launchQueueRequestTimeout().milliseconds + config.taskOpNotificationTimeout().millisecond
+  val purgeTimeout: Timeout = DurationInt(3000).milliseconds + DurationInt(30000).millisecond
 
-  val launchQueueRequestTimeout: Timeout = config.launchQueueRequestTimeout().milliseconds
+  val launchQueueRequestTimeout: Timeout = DurationInt(3000).milliseconds
 
   override def add(action: Action): ActionHandlerResult =
     askActionActor[ActionManagerDelegate.Request, ActionHandlerResult]("add")(ActionManagerDelegate.Add(action))

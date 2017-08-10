@@ -15,7 +15,6 @@ import mesosphere.marathon.core.group.GroupManager
 import mesosphere.marathon.core.instance.Instance
 import mesosphere.marathon.core.instance.update.InstanceChange
 import mesosphere.marathon.core.launcher.InstanceOpFactory
-import mesosphere.marathon.core.launchqueue.LaunchQueueConfig
 import mesosphere.marathon.core.matcher.manager.OfferMatcherManager
 import mesosphere.marathon.core.task.termination.KillService
 import mesosphere.marathon.core.task.tracker.InstanceTracker
@@ -27,14 +26,12 @@ import scala.concurrent.{ ExecutionContext, Future }
 class ActionManagerActor(
     groupManager: GroupManager,
     instanceTracker: InstanceTracker,
-    config: LaunchQueueConfig,
     offerMatcherManager: OfferMatcherManager,
     clock: Clock,
     taskOpFactory: InstanceOpFactory,
     maybeOfferReviver: Option[OfferReviver],
     killService: KillService)(implicit ec: ExecutionContext) extends Actor with ActorLogging {
   val runSpecLauncherActor: ActorRef = context.actorOf(RunSpecLauncherActor.props(
-    config,
     offerMatcherManager,
     clock,
     taskOpFactory,
@@ -121,7 +118,6 @@ object ActionManagerActor {
   def props(
     groupManager: GroupManager,
     instanceTracker: InstanceTracker,
-    config: LaunchQueueConfig,
     offerMatcherManager: OfferMatcherManager,
     clock: Clock,
     taskOpFactory: InstanceOpFactory,
@@ -130,7 +126,6 @@ object ActionManagerActor {
   )(implicit ec: ExecutionContext): Props = Props(new ActionManagerActor(
     groupManager,
     instanceTracker,
-    config,
     offerMatcherManager,
     clock,
     taskOpFactory,

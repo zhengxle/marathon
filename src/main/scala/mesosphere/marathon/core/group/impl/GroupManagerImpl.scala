@@ -2,7 +2,6 @@ package mesosphere.marathon
 package core.group.impl
 
 import java.time.OffsetDateTime
-import javax.inject.Provider
 
 import akka.event.EventStream
 import akka.stream.scaladsl.Source

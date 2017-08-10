@@ -17,7 +17,6 @@ import mesosphere.marathon.core.group.GroupManager
 import mesosphere.marathon.core.health.HealthCheckManager
 import mesosphere.marathon.core.instance.update.InstanceChangeHandler
 import mesosphere.marathon.core.launcher.OfferProcessor
-import mesosphere.marathon.core.launchqueue.LaunchQueue
 import mesosphere.marathon.core.leadership.{ LeadershipCoordinator, LeadershipModule }
 import mesosphere.marathon.core.plugin.{ PluginDefinitions, PluginManager }
 import mesosphere.marathon.core.pod.PodManager
@@ -71,8 +70,7 @@ class CoreGuiceModule(config: Config) extends AbstractModule {
   def leadershipCoordinator( // linter:ignore UnusedParameter
     leadershipModule: LeadershipModule,
     // makeSureToInitializeThisBeforeCreatingCoordinator
-    prerequisite1: TaskStatusUpdateProcessor,
-    prerequisite2: LaunchQueue): LeadershipCoordinator =
+    prerequisite1: TaskStatusUpdateProcessor): LeadershipCoordinator =
     leadershipModule.coordinator()
 
   @Provides @Singleton
@@ -87,9 +85,6 @@ class CoreGuiceModule(config: Config) extends AbstractModule {
 
   @Provides @Singleton
   def taskJobsModule(coreModule: CoreModule): TaskJobsModule = coreModule.taskJobsModule
-
-  @Provides @Singleton
-  final def launchQueue(coreModule: CoreModule): LaunchQueue = coreModule.appOfferMatcherModule.launchQueue
 
   @Provides @Singleton
   final def actionManager(coreModule: CoreModule): ActionManager = coreModule.actionManagerModule.actionManager
@@ -156,8 +151,6 @@ class CoreGuiceModule(config: Config) extends AbstractModule {
   @Provides @Singleton
   def taskStatusUpdateSteps(
     notifyHealthCheckManagerStepImpl: NotifyHealthCheckManagerStepImpl,
-    notifyRateLimiterStepImpl: NotifyRateLimiterStepImpl,
-    notifyLaunchQueueStepImpl: NotifyLaunchQueueStepImpl,
     taskStatusEmitterPublishImpl: TaskStatusEmitterPublishStepImpl,
     postToEventStreamStepImpl: PostToEventStreamStepImpl): Seq[InstanceChangeHandler] = {
 
@@ -175,8 +168,6 @@ class CoreGuiceModule(config: Config) extends AbstractModule {
       // address reliably before attempting to initiate health checks, or
       // publish events to the bus.
       ContinueOnErrorStep(notifyHealthCheckManagerStepImpl),
-      ContinueOnErrorStep(notifyRateLimiterStepImpl),
-      ContinueOnErrorStep(notifyLaunchQueueStepImpl),
       ContinueOnErrorStep(taskStatusEmitterPublishImpl),
       ContinueOnErrorStep(postToEventStreamStepImpl)
     )

@@ -19,7 +19,6 @@ import mesosphere.marathon.core.history.HistoryModule
 import mesosphere.marathon.core.instance.update.InstanceChangeHandler
 import mesosphere.marathon.core.launcher.LauncherModule
 import mesosphere.marathon.core.launcher.impl.UnreachableReservedOfferMonitor
-import mesosphere.marathon.core.launchqueue.LaunchQueueModule
 import mesosphere.marathon.core.leadership.LeadershipModule
 import mesosphere.marathon.core.matcher.base.util.StopOnFirstMatchingOfferMatcher
 import mesosphere.marathon.core.matcher.manager.OfferMatcherManagerModule
@@ -133,19 +132,6 @@ class CoreModuleImpl @Inject() (
     taskStatusPublisher = taskStatusUpdateProcessor.publish(_)
   )(actorsModule.materializer)
 
-  override lazy val appOfferMatcherModule = new LaunchQueueModule(
-    marathonConf,
-    leadershipModule, clock,
-
-    // internal core dependencies
-    offerMatcherManagerModule.subOfferMatcherManager,
-    maybeOfferReviver,
-
-    // external guice dependencies
-    taskTrackerModule.instanceTracker,
-    launcherModule.taskOpFactory
-  )
-
   // PLUGINS
 
   override lazy val pluginModule = new PluginModule(marathonConf)
@@ -201,7 +187,6 @@ class CoreModuleImpl @Inject() (
   // ACTION MANAGER
 
   override val actionManagerModule: ActionManagerModule = new ActionManagerModule(
-    marathonConf,
     groupManagerModule.groupManager,
     leadershipModule, clock,
 
@@ -255,7 +240,6 @@ class CoreModuleImpl @Inject() (
     storageModule.groupRepository,
     healthModule.healthCheckManager,
     taskTrackerModule.instanceTracker,
-    appOfferMatcherModule.launchQueue,
     eventStream,
     taskTerminationModule.taskKillService)(ExecutionContexts.global)
 

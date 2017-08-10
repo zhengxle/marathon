@@ -49,7 +49,6 @@ class MarathonRestModule extends ServletModule {
     bind(classOf[v2.ActionsResource]).in(Scopes.SINGLETON)
     bind(classOf[v2.PodsResource]).in(Scopes.SINGLETON)
     bind(classOf[v2.TasksResource]).in(Scopes.SINGLETON)
-    bind(classOf[v2.QueueResource]).in(Scopes.SINGLETON)
     bind(classOf[v2.GroupsResource]).in(Scopes.SINGLETON)
     bind(classOf[v2.InfoResource]).in(Scopes.SINGLETON)
     bind(classOf[v2.LeaderResource]).in(Scopes.SINGLETON)

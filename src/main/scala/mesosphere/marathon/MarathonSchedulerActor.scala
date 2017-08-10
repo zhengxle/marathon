@@ -1,17 +1,14 @@
 package mesosphere.marathon
 
-import akka.Done
 import akka.actor._
 import akka.pattern.pipe
 import akka.event.{ EventStream, LoggingReceive }
 import akka.stream.Materializer
 import com.typesafe.scalalogging.StrictLogging
 import mesosphere.marathon.core.election.{ ElectionService, LocalLeadershipEvent }
-import mesosphere.marathon.core.event.AppTerminatedEvent
 import mesosphere.marathon.core.health.HealthCheckManager
 import mesosphere.marathon.core.instance.Instance
 import mesosphere.marathon.core.instance.Instance.AgentInfo
-import mesosphere.marathon.core.launchqueue.LaunchQueue
 import mesosphere.marathon.core.task.Task
 import mesosphere.marathon.core.task.termination.{ KillReason, KillService }
 import mesosphere.marathon.core.task.tracker.InstanceTracker
@@ -32,7 +29,6 @@ class MarathonSchedulerActor private (
   historyActorProps: Props,
   healthCheckManager: HealthCheckManager,
   killService: KillService,
-  launchQueue: LaunchQueue,
   marathonSchedulerDriverHolder: MarathonSchedulerDriverHolder,
   electionService: ElectionService,
   eventBus: EventStream)(implicit val mat: Materializer) extends Actor
@@ -194,7 +190,6 @@ object MarathonSchedulerActor {
     historyActorProps: Props,
     healthCheckManager: HealthCheckManager,
     killService: KillService,
-    launchQueue: LaunchQueue,
     marathonSchedulerDriverHolder: MarathonSchedulerDriverHolder,
     electionService: ElectionService,
     eventBus: EventStream)(implicit mat: Materializer): Props = {
@@ -204,7 +199,6 @@ object MarathonSchedulerActor {
       historyActorProps,
       healthCheckManager,
       killService,
-      launchQueue,
       marathonSchedulerDriverHolder,
       electionService,
       eventBus
@@ -237,39 +231,10 @@ class SchedulerActions(
     groupRepository: GroupRepository,
     healthCheckManager: HealthCheckManager,
     instanceTracker: InstanceTracker,
-    launchQueue: LaunchQueue,
     eventBus: EventStream,
     val killService: KillService)(implicit ec: ExecutionContext) extends StrictLogging {
 
   // TODO move stuff below out of the scheduler
-
-  @SuppressWarnings(Array("all")) // async/await
-  def stopRunSpec(runSpec: RunSpec): Future[Done] = {
-    healthCheckManager.removeAllFor(runSpec.id)
-
-    logger.info(s"Stopping runSpec ${runSpec.id}")
-    async {
-      val tasks = await(instanceTracker.specInstances(runSpec.id))
-
-      tasks.foreach { instance =>
-        if (instance.isLaunched) {
-          logger.info("Killing {}", instance.instanceId)
-          killService.killInstance(instance, KillReason.DeletingApp)
-        }
-      }
-      await(launchQueue.asyncPurge(runSpec.id))
-      Done
-    }.recover {
-      case NonFatal(error) => logger.warn(s"Error in stopping runSpec ${runSpec.id}", error); Done
-    }.map { _ =>
-      launchQueue.resetDelay(runSpec)
-
-      // The tasks will be removed from the InstanceTracker when their termination
-      // was confirmed by Mesos via a task update.
-      eventBus.publish(AppTerminatedEvent(runSpec.id))
-      Done
-    }
-  }
 
   /**
     * Make sure all runSpecs are running the configured amount of tasks.

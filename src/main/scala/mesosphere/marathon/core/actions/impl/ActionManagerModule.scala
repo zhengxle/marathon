@@ -7,7 +7,6 @@ import mesosphere.marathon.core.base.Clock
 import mesosphere.marathon.core.flow.OfferReviver
 import mesosphere.marathon.core.group.GroupManager
 import mesosphere.marathon.core.launcher.InstanceOpFactory
-import mesosphere.marathon.core.launchqueue.LaunchQueueConfig
 import mesosphere.marathon.core.leadership.LeadershipModule
 import mesosphere.marathon.core.matcher.manager.OfferMatcherManager
 import mesosphere.marathon.core.task.termination.KillService
@@ -19,7 +18,6 @@ import scala.concurrent.ExecutionContext
   * Provides an [[ActionManagerActor]] implementation
   */
 class ActionManagerModule(
-    config: LaunchQueueConfig,
     groupManager: GroupManager,
     leadershipModule: LeadershipModule,
     clock: Clock,
@@ -33,7 +31,6 @@ class ActionManagerModule(
     val props = ActionManagerActor.props(
       groupManager,
       taskTracker,
-      config,
       subOfferMatcherManager,
       clock,
       taskOpFactory,
@@ -42,5 +39,5 @@ class ActionManagerModule(
     leadershipModule.startWhenLeader(props, "actionManager")
   }
 
-  val actionManager: ActionManager = new ActionManagerDelegate(config, actionManagerActorRef)
+  val actionManager: ActionManager = new ActionManagerDelegate(actionManagerActorRef)
 }

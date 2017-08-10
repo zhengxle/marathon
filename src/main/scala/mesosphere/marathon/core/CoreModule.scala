@@ -10,7 +10,6 @@ import mesosphere.marathon.core.group.GroupManagerModule
 import mesosphere.marathon.core.health.HealthModule
 import mesosphere.marathon.core.history.HistoryModule
 import mesosphere.marathon.core.launcher.LauncherModule
-import mesosphere.marathon.core.launchqueue.LaunchQueueModule
 import mesosphere.marathon.core.leadership.LeadershipModule
 import mesosphere.marathon.core.plugin.PluginModule
 import mesosphere.marathon.core.pod.PodModule
@@ -29,7 +28,6 @@ import mesosphere.marathon.storage.StorageModule
   */
 trait CoreModule {
   def actorsModule: ActorsModule
-  def appOfferMatcherModule: LaunchQueueModule
   def authModule: AuthModule
   def electionModule: ElectionModule
   def eventModule: EventModule

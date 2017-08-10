@@ -12,7 +12,6 @@ import mesosphere.marathon.core.flow.OfferReviver
 import mesosphere.marathon.core.instance.Instance
 import mesosphere.marathon.core.instance.update.{ InstanceChange, InstanceDeleted, InstanceUpdated }
 import mesosphere.marathon.core.launcher.{ InstanceOp, InstanceOpFactory, OfferMatchResult }
-import mesosphere.marathon.core.launchqueue.LaunchQueueConfig
 import mesosphere.marathon.core.matcher.base.OfferMatcher
 import mesosphere.marathon.core.matcher.base.OfferMatcher.{ InstanceOpWithSource, MatchedInstanceOps }
 import mesosphere.marathon.core.matcher.base.util.{ ActorOfferMatcher, InstanceOpSourceDelegate }
@@ -28,7 +27,6 @@ import scala.concurrent.duration._
 
 private[actions] object RunSpecLauncherActor {
   def props(
-    config: LaunchQueueConfig,
     offerMatcherManager: OfferMatcherManager,
     clock: Clock,
     taskOpFactory: InstanceOpFactory,
@@ -36,7 +34,6 @@ private[actions] object RunSpecLauncherActor {
     instanceTracker: InstanceTracker
   ): Props = {
     Props(new RunSpecLauncherActor(
-      config,
       offerMatcherManager,
       clock, taskOpFactory,
       maybeOfferReviver,
@@ -62,7 +59,6 @@ private[actions] object RunSpecLauncherActor {
   * Allows processing offers for starting tasks for the given app.
   */
 private class RunSpecLauncherActor(
-    config: LaunchQueueConfig,
     offerMatcherManager: OfferMatcherManager,
     clock: Clock,
     instanceOpFactory: InstanceOpFactory,
@@ -310,7 +306,7 @@ private class RunSpecLauncherActor(
     message: InstanceOpSourceDelegate.InstanceOpRejected): Cancellable =
     {
       import context.dispatcher
-      context.system.scheduler.scheduleOnce(config.taskOpNotificationTimeout().milliseconds, self, message)
+      context.system.scheduler.scheduleOnce(DurationInt(30000).milliseconds, self, message)
     }
 
   private[this] def shouldLaunchInstances: Boolean = remainingLaunches.nonEmpty
