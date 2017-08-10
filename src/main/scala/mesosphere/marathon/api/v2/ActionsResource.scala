@@ -7,10 +7,7 @@ import javax.servlet.http.HttpServletRequest
 import javax.ws.rs._
 import javax.ws.rs.core.{ Context, MediaType, Response }
 
-import akka.actor.ActorRef
 import akka.event.EventStream
-import akka.http.scaladsl.model._
-import com.google.inject.name.Named
 import mesosphere.marathon.api.{ AuthResource, MarathonMediaType, RestResource }
 import mesosphere.marathon.core.actions.ActionManager
 import mesosphere.marathon.core.actions.impl.ActionManagerActor
@@ -26,8 +23,7 @@ import mesosphere.marathon.state.PathId
 class ActionsResource @Inject() (
     eventBus: EventStream,
     val config: MarathonConf,
-    actionManager: ActionManager,
-    @Named("schedulerActor") actionManagerActor: ActorRef)(implicit
+    actionManager: ActionManager)(implicit
   val authenticator: Authenticator,
     val authorizer: Authorizer) extends RestResource with AuthResource {
 

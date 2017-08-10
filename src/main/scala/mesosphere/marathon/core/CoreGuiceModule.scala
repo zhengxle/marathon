@@ -152,7 +152,8 @@ class CoreGuiceModule(config: Config) extends AbstractModule {
   def taskStatusUpdateSteps(
     notifyHealthCheckManagerStepImpl: NotifyHealthCheckManagerStepImpl,
     taskStatusEmitterPublishImpl: TaskStatusEmitterPublishStepImpl,
-    postToEventStreamStepImpl: PostToEventStreamStepImpl): Seq[InstanceChangeHandler] = {
+    postToEventStreamStepImpl: PostToEventStreamStepImpl,
+    restartRunSpecStepImpl: RestartRunSpecStepImpl): Seq[InstanceChangeHandler] = {
 
     // This is a sequence on purpose. The specified steps are executed in order for every
     // task status update.
@@ -169,7 +170,8 @@ class CoreGuiceModule(config: Config) extends AbstractModule {
       // publish events to the bus.
       ContinueOnErrorStep(notifyHealthCheckManagerStepImpl),
       ContinueOnErrorStep(taskStatusEmitterPublishImpl),
-      ContinueOnErrorStep(postToEventStreamStepImpl)
+      ContinueOnErrorStep(postToEventStreamStepImpl),
+      ContinueOnErrorStep(restartRunSpecStepImpl)
     )
   }
 
