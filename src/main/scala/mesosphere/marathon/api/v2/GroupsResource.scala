@@ -265,7 +265,7 @@ class GroupsResource @Inject() (
 
     def clearRootGroup(rootGroup: RootGroup) = {
       checkAuthorization(DeleteGroup, rootGroup)
-      (RootGroup(version = version), Seq.empty, Seq.empty)
+      (RootGroup(version = version), Seq.empty, Seq.empty, Seq.empty, Seq.empty)
     }
 
     result(groupManager.updateRoot(PathId.empty, clearRootGroup, version, force))
@@ -292,10 +292,10 @@ class GroupsResource @Inject() (
         case Some(group) => checkAuthorization(DeleteGroup, group)
         case None => throw UnknownGroupException(groupId)
       }
-      (rootGroup.removeGroup(groupId, version), Seq.empty, Seq.empty)
+      (rootGroup.removeGroup(groupId, version), Seq.empty, Seq.empty, Seq.empty, Seq.empty)
     }
 
-    val deployment = result(groupManager.updateRoot(groupId.parent, deleteGroup, version, force))
+    result(groupManager.updateRoot(groupId.parent, deleteGroup, version, force))
     Response.ok().build()
   }
 
@@ -303,7 +303,7 @@ class GroupsResource @Inject() (
     rootGroup: RootGroup,
     groupId: PathId,
     groupUpdate: raml.GroupUpdate,
-    newVersion: Timestamp)(implicit identity: Identity): (RootGroup, Seq[AppDefinition], Seq[PodDefinition]) = {
+    newVersion: Timestamp)(implicit identity: Identity): (RootGroup, Seq[AppDefinition], Seq[PathId], Seq[PodDefinition], Seq[PathId]) = {
     val group = rootGroup.group(groupId).getOrElse(Group.empty(groupId))
 
     /**
@@ -336,7 +336,7 @@ class GroupsResource @Inject() (
       rootGroup.putGroup(updatedGroup, newVersion)
     }
 
-    (versionChange.orElse(scaleChange).getOrElse(createOrUpdateChange), Seq.empty, Seq.empty)
+    (versionChange.orElse(scaleChange).getOrElse(createOrUpdateChange), Seq.empty, Seq.empty, Seq.empty, Seq.empty)
   }
 
   private def updateOrCreate(

@@ -106,7 +106,7 @@ trait GroupManager {
     */
   def updateRoot(
     id: PathId,
-    fn: RootGroup => (RootGroup, Seq[AppDefinition], Seq[PodDefinition]),
+    fn: RootGroup => (RootGroup, Seq[AppDefinition], Seq[PathId], Seq[PodDefinition], Seq[PathId]),
     version: Timestamp = Timestamp.now(),
     force: Boolean = false,
     toKill: Map[PathId, Seq[Instance]] = Map.empty): Future[Done]

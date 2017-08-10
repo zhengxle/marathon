@@ -242,6 +242,7 @@ class AppsResource @Inject() (
       rootGroup.removeApp(appId)
     }
 
+    result(groupManager.updateRoot(appId.parent, deleteApp, version = Timestamp.now(), force = force))
     Response.ok("deleting").build()
   }
 
@@ -316,16 +317,16 @@ class AppsResource @Inject() (
       val version = clock.now()
       val updates = canonicalAppUpdatesFromJson(body, partialUpdate)
 
-      def updateGroup(rootGroup: RootGroup): (RootGroup, Seq[AppDefinition], Seq[PodDefinition]) =
-        updates.foldLeft((rootGroup, Seq[AppDefinition](), Seq[PodDefinition]())) { (result, update) =>
+      def updateGroup(rootGroup: RootGroup): (RootGroup, Seq[AppDefinition], Seq[PathId], Seq[PodDefinition], Seq[PathId]) =
+        updates.foldLeft((rootGroup, Seq[AppDefinition](), Seq[PathId](), Seq[PodDefinition](), Seq[PathId]())) { (result, update) =>
           update.id.map(PathId(_)) match {
             case Some(id) =>
-              val (updatedRoot, updatedApps, updatedPods) = result._1.updateApp(
+              val (updatedRoot, updatedApps, deletedApps, updatedPods, deletedPods) = result._1.updateApp(
                 id,
                 updateOrCreate(id, _, update, partialUpdate, allowCreation = allowCreation),
                 version
               )
-              (updatedRoot, result._2 ++ updatedApps, result._3 ++ updatedPods)
+              (updatedRoot, result._2 ++ updatedApps, result._3 ++ deletedApps, result._4 ++ updatedPods, result._5 ++ deletedPods)
             case None => result
           }
         }

@@ -83,7 +83,7 @@ class GroupManagerImpl(
   @SuppressWarnings(Array("all")) /* async/await */
   override def updateRoot(
     id: PathId,
-    change: (RootGroup) => (RootGroup, Seq[AppDefinition], Seq[PodDefinition]),
+    change: (RootGroup) => (RootGroup, Seq[AppDefinition], Seq[PathId], Seq[PodDefinition], Seq[PathId]),
     version: Timestamp,
     force: Boolean,
     toKill: Map[PathId, Seq[Instance]]): Future[Done] = {
@@ -94,12 +94,12 @@ class GroupManagerImpl(
         logger.info(s"Upgrade root group version:$version with force:$force")
 
         val from = rootGroup()
-        val (updatedRoot, updatedApps, updatedPods) = change(from)
+        val (updatedRoot, updatedApps, deletedApps, updatedPods, deletedPods) = change(from)
         val unversioned = assignDynamicServicePorts(from, updatedRoot)
         val to = GroupVersioningUtil.updateVersionInfoForChangedApps(version, from, unversioned)
         Validation.validateOrThrow(to)(RootGroup.rootGroupValidator(config.availableFeatures))
         await(groupRepository.storeRootVersion(to, updatedApps, updatedPods))
-        await(groupRepository.storeRoot(to, updatedApps, Seq.empty, updatedPods, Seq.empty))
+        await(groupRepository.storeRoot(to, updatedApps, deletedApps, updatedPods, deletedPods))
         logger.info(s"Updated groups/apps/pods")
         root := to
         Done
