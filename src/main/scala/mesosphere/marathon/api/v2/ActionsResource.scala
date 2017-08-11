@@ -50,9 +50,9 @@ class ActionsResource @Inject() (
   }
 
   @POST
-  @Path("""instances/{runSpecId:.+}""")
+  @Path("""instances""")
   def createInstance(
-    @PathParam("runSpecId") id: String,
+    @QueryParam("runSpecId") id: String,
     @DefaultValue("true")@QueryParam("restartOnExit") restartOnExit: Boolean,
     @DefaultValue("true")@QueryParam("restartOnFailure") restartOnFailure: Boolean,
     @Context req: HttpServletRequest): Response = authenticated(req) { implicit identity =>
