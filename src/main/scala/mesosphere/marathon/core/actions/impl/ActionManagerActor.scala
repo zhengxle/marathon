@@ -94,7 +94,7 @@ class ActionManagerActor(
       case Some(runSpec) =>
         action.setStatus(ActionStatus.Running)
         // TODO (Keno): Persist updated action
-        runSpecLauncherActor ! AddInstance(runSpec, Some(action.uuid))
+        runSpecLauncherActor ! AddInstance(runSpec, action.restartOnExit, action.restartOnFailure, Some(action.uuid))
         Future.successful(Result.Success())
       case None =>
         Future.successful(Result.RunSpecNotFound(action.runSpecId))

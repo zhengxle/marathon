@@ -27,7 +27,9 @@ case class Instance(
     state: InstanceState,
     tasksMap: Map[Task.Id, Task],
     runSpecVersion: Timestamp,
-    unreachableStrategy: UnreachableStrategy) extends MarathonState[Protos.Json, Instance] with Placed {
+    unreachableStrategy: UnreachableStrategy,
+    restartOnExit: Boolean,
+    restartOnFailure: Boolean) extends MarathonState[Protos.Json, Instance] with Placed {
 
   val runSpecId: PathId = instanceId.runSpecId
   val isLaunched: Boolean = state.condition.isActive
@@ -324,8 +326,10 @@ object Instance {
       (__ \ "tasksMap").write[Map[Task.Id, Task]] ~
       (__ \ "runSpecVersion").write[Timestamp] ~
       (__ \ "state").write[InstanceState] ~
-      (__ \ "unreachableStrategy").write[raml.UnreachableStrategy]
-    ) { (i) => (i.instanceId, i.agentInfo, i.tasksMap, i.runSpecVersion, i.state, Raml.toRaml(i.unreachableStrategy)) }
+      (__ \ "unreachableStrategy").write[raml.UnreachableStrategy] ~
+      (__ \ "restartOnExit").write[Boolean] ~
+      (__ \ "restartOnFailure").write[Boolean]
+    ) { (i) => (i.instanceId, i.agentInfo, i.tasksMap, i.runSpecVersion, i.state, Raml.toRaml(i.unreachableStrategy), i.restartOnExit, i.restartOnFailure) }
   }
 
   implicit val unreachableStrategyReads: Reads[Instance] = {
@@ -335,11 +339,13 @@ object Instance {
       (__ \ "tasksMap").read[Map[Task.Id, Task]] ~
       (__ \ "runSpecVersion").read[Timestamp] ~
       (__ \ "state").read[InstanceState] ~
-      (__ \ "unreachableStrategy").readNullable[raml.UnreachableStrategy]
-    ) { (instanceId, agentInfo, tasksMap, runSpecVersion, state, maybeUnreachableStrategy) =>
+      (__ \ "unreachableStrategy").readNullable[raml.UnreachableStrategy] ~
+      (__ \ "restartOnExit").read[Boolean] ~
+      (__ \ "restartOnFailure").read[Boolean]
+    ) { (instanceId, agentInfo, tasksMap, runSpecVersion, state, maybeUnreachableStrategy, restartOnExit, restartOnFailure) =>
         val unreachableStrategy = maybeUnreachableStrategy.
           map(Raml.fromRaml(_)).getOrElse(UnreachableStrategy.default())
-        new Instance(instanceId, agentInfo, state, tasksMap, runSpecVersion, unreachableStrategy)
+        new Instance(instanceId, agentInfo, state, tasksMap, runSpecVersion, unreachableStrategy, restartOnExit, restartOnFailure)
       }
   }
 
@@ -371,11 +377,11 @@ object Instance {
   * @param runSpecVersion the version of the task related runSpec
   */
 object LegacyAppInstance {
-  def apply(task: Task, agentInfo: AgentInfo, unreachableStrategy: UnreachableStrategy): Instance = {
+  def apply(task: Task, agentInfo: AgentInfo, unreachableStrategy: UnreachableStrategy, restartOnExit: Boolean = true, restartOnFailure: Boolean = true): Instance = {
     val since = task.status.startedAt.getOrElse(task.status.stagedAt)
     val tasksMap = Map(task.taskId -> task)
     val state = Instance.InstanceState(None, tasksMap, since, unreachableStrategy)
 
-    new Instance(task.taskId.instanceId, agentInfo, state, tasksMap, task.runSpecVersion, unreachableStrategy)
+    new Instance(task.taskId.instanceId, agentInfo, state, tasksMap, task.runSpecVersion, unreachableStrategy, restartOnExit, restartOnFailure)
   }
 }

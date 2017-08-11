@@ -8,6 +8,7 @@ import javax.ws.rs._
 import javax.ws.rs.core.{ Context, MediaType, Response }
 
 import akka.event.EventStream
+import com.typesafe.scalalogging.StrictLogging
 import mesosphere.marathon.api.{ AuthResource, MarathonMediaType, RestResource }
 import mesosphere.marathon.core.actions.ActionManager
 import mesosphere.marathon.core.actions.impl.ActionManagerActor
@@ -25,7 +26,7 @@ class ActionsResource @Inject() (
     val config: MarathonConf,
     actionManager: ActionManager)(implicit
   val authenticator: Authenticator,
-    val authorizer: Authorizer) extends RestResource with AuthResource {
+    val authorizer: Authorizer) extends RestResource with AuthResource with StrictLogging {
 
   @GET
   def index(
@@ -52,9 +53,12 @@ class ActionsResource @Inject() (
   @Path("""instances/{runSpecId:.+}""")
   def createInstance(
     @PathParam("runSpecId") id: String,
+    @DefaultValue("true")@QueryParam("restartOnExit") restartOnExit: Boolean,
+    @DefaultValue("true")@QueryParam("restartOnFailure") restartOnFailure: Boolean,
     @Context req: HttpServletRequest): Response = authenticated(req) { implicit identity =>
-    val action = CreateInstanceAction(PathId.fromSafePath(id), UUID.randomUUID())
+    val action = CreateInstanceAction(PathId.fromSafePath(id), restartOnExit, restartOnFailure, UUID.randomUUID())
     val actionResult = actionManager.add(action)
+    logger.info(s"Creating instance of $id with restartOnExit=$restartOnExit, restartOnFailure=$restartOnFailure")
     val response = actionResult match {
       case _: ActionManagerActor.Result.RunSpecNotFound => Response.status(404).entity("unknown run spec id")
       case _: ActionManagerActor.Result.Success => Response.ok("action created")

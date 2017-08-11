@@ -17,7 +17,6 @@ trait InstanceOpFactory {
     *         which describes why this offer request could not be matched.
     */
   def matchOfferRequest(request: InstanceOpFactory.Request): OfferMatchResult
-
 }
 
 object InstanceOpFactory {
@@ -28,7 +27,7 @@ object InstanceOpFactory {
     *              needed to check constraints and handle resident tasks
     * @param additionalLaunches the number of additional launches that has been requested
     */
-  case class Request(runSpec: RunSpec, offer: Mesos.Offer, instanceMap: Map[Instance.Id, Instance],
+  case class Request(runSpec: RunSpec, restartOnExit: Boolean, restartOnFailure: Boolean, offer: Mesos.Offer, instanceMap: Map[Instance.Id, Instance],
       additionalLaunches: Int) {
     def frameworkId: FrameworkId = FrameworkId("").mergeFromProto(offer.getFrameworkId)
     def instances: Seq[Instance] = instanceMap.values.to[Seq]

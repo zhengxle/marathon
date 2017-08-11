@@ -9,7 +9,7 @@ import mesosphere.marathon.core.instance.Instance
 import mesosphere.marathon.core.instance.update.InstanceChange
 import mesosphere.marathon.state.PathId
 
-case class CreateInstanceAction(runSpecId: PathId, uuid: UUID) extends InstanceAction {
+case class CreateInstanceAction(runSpecId: PathId, restartOnExit: Boolean, restartOnFailure: Boolean, uuid: UUID) extends InstanceAction {
   override var affectedInstanceId: Option[Instance.Id] = None
 
   override def getStatusForInstanceChange(change: InstanceChange): ActionStatus.Value = {

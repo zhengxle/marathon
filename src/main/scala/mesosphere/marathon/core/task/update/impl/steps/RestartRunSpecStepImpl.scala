@@ -22,16 +22,21 @@ class RestartRunSpecStepImpl @Inject() (actionManagerProvider: Provider[ActionMa
   override def name: String = "restartRunSpec"
 
   override def process(update: InstanceChange): Future[Done] = {
-    val restart = update.condition match {
-      case Condition.Failed => true
-      case Condition.Finished => true
+    val instanceId = update.instance.instanceId
+    val restartOnExit = update.instance.restartOnExit
+    val restartOnFailure = update.instance.restartOnFailure
+    logger.info(s"Instance $instanceId (restartOnExit=$restartOnExit, restartOnFailure=$restartOnFailure) failed. Checking restart")
+
+    val conditionPermitsRestart = update.condition match {
+      case Condition.Failed if update.instance.restartOnFailure => true
+      case Condition.Finished if update.instance.restartOnExit => true
       case _ => false
     }
 
-    if (restart) {
+    if (conditionPermitsRestart) {
       val runSpecId = update.instance.runSpecId
-      logger.info(s"Restarting run spec $runSpecId after instance ${update.instance.instanceId} stopped unexpectedly")
-      actionManager.add(CreateInstanceAction(runSpecId, UUID.randomUUID()))
+      logger.info(s"Restarting run spec $runSpecId after instance $instanceId stopped unexpectedly")
+      actionManager.add(CreateInstanceAction(runSpecId, update.instance.restartOnExit, update.instance.restartOnFailure, UUID.randomUUID()))
     }
 
     Future.successful(Done)

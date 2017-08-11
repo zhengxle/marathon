@@ -76,7 +76,7 @@ class InstanceOpFactoryImpl(
         // TODO(jdef) no support for resident tasks inside pods for the MVP
         val agentInfo = Instance.AgentInfo(request.offer)
         val taskIDs: Seq[Task.Id] = groupInfo.getTasksList.map { t => Task.Id(t.getTaskId) }(collection.breakOut)
-        val instance = ephemeralPodInstance(pod, agentInfo, taskIDs, hostPorts, instanceId)
+        val instance = ephemeralPodInstance(pod, request.restartOnExit, request.restartOnFailure, agentInfo, taskIDs, hostPorts, instanceId)
         val instanceOp = taskOperationFactory.launchEphemeral(executorInfo, groupInfo, Instance.LaunchRequest(instance))
         OfferMatchResult.Match(pod, request.offer, instanceOp, clock.now())
       case matchesNot: ResourceMatchResponse.NoMatch =>
@@ -85,7 +85,7 @@ class InstanceOpFactoryImpl(
   }
 
   private[this] def inferNormalTaskOp(app: AppDefinition, request: InstanceOpFactory.Request): OfferMatchResult = {
-    val InstanceOpFactory.Request(runSpec, offer, instances, _) = request
+    val InstanceOpFactory.Request(runSpec, restartOnExit, restartOnFailure, offer, instances, _) = request
 
     val matchResponse =
       RunSpecOfferMatcher.matchOffer(app, offer, instances.values.toIndexedSeq, config.defaultAcceptedResourceRolesSet)
@@ -104,7 +104,7 @@ class InstanceOpFactoryImpl(
         )
 
         val agentInfo = AgentInfo(offer)
-        val instance = LegacyAppInstance(task, agentInfo, app.unreachableStrategy)
+        val instance = LegacyAppInstance(task, agentInfo, app.unreachableStrategy, restartOnExit, restartOnFailure)
         val instanceOp = taskOperationFactory.launchEphemeral(taskInfo, task, instance)
         OfferMatchResult.Match(app, request.offer, instanceOp, clock.now())
       case matchesNot: ResourceMatchResponse.NoMatch => OfferMatchResult.NoMatch(app, request.offer, matchesNot.reasons, clock.now())
@@ -112,7 +112,7 @@ class InstanceOpFactoryImpl(
   }
 
   private[this] def inferForResidents(app: AppDefinition, request: InstanceOpFactory.Request): OfferMatchResult = {
-    val InstanceOpFactory.Request(runSpec, offer, instances, additionalLaunches) = request
+    val InstanceOpFactory.Request(runSpec, restartOnExit, restartOnFailure, offer, instances, additionalLaunches) = request
 
     // TODO(jdef) pods should be supported some day
 
@@ -179,7 +179,7 @@ class InstanceOpFactoryImpl(
         ResourceMatcher.matchResources(offer, runSpec, instances.valuesIterator.toStream, ResourceSelector.reservable)
       resourceMatchResponse match {
         case matches: ResourceMatchResponse.Match =>
-          val instanceOp = reserveAndCreateVolumes(request.frameworkId, runSpec, offer, matches.resourceMatch)
+          val instanceOp = reserveAndCreateVolumes(request.frameworkId, runSpec, restartOnExit, restartOnFailure, offer, matches.resourceMatch)
           Some(OfferMatchResult.Match(app, request.offer, instanceOp, clock.now()))
         case matchesNot: ResourceMatchResponse.NoMatch =>
           Some(OfferMatchResult.NoMatch(app, request.offer, matchesNot.reasons, clock.now()))
@@ -224,6 +224,8 @@ class InstanceOpFactoryImpl(
   private[this] def reserveAndCreateVolumes(
     frameworkId: FrameworkId,
     runSpec: RunSpec,
+    restartOnExit: Boolean,
+    restartOnFailure: Boolean,
     offer: Mesos.Offer,
     resourceMatch: ResourceMatcher.ResourceMatch): InstanceOp = {
 
@@ -263,7 +265,9 @@ class InstanceOpFactoryImpl(
       ),
       tasksMap = Map(task.taskId -> task),
       runSpecVersion = runSpec.version,
-      unreachableStrategy = runSpec.unreachableStrategy
+      unreachableStrategy = runSpec.unreachableStrategy,
+      restartOnExit,
+      restartOnFailure
     )
     val stateOp = InstanceUpdateOperation.Reserve(instance)
     taskOperationFactory.reserveAndCreateVolumes(frameworkId, stateOp, resourceMatch.resources, localVolumes)
@@ -283,6 +287,8 @@ object InstanceOpFactoryImpl {
 
   protected[impl] def ephemeralPodInstance(
     pod: PodDefinition,
+    restartOnExit: Boolean,
+    restartOnFailure: Boolean,
     agentInfo: Instance.AgentInfo,
     taskIDs: Seq[Task.Id],
     hostPorts: Seq[Option[Int]],
@@ -325,7 +331,9 @@ object InstanceOpFactoryImpl {
         task.taskId -> task
       }(collection.breakOut),
       runSpecVersion = pod.version,
-      unreachableStrategy = pod.unreachableStrategy
+      unreachableStrategy = pod.unreachableStrategy,
+      restartOnExit,
+      restartOnFailure
     )
   } // inferPodInstance
 }

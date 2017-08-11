@@ -46,7 +46,7 @@ private[actions] object RunSpecLauncherActor {
     * Increase the instance count of the receiver.
     * The actor responds with an [[InstanceCreated]] message.
     */
-  case class AddInstance(spec: RunSpec, id: Option[UUID]) extends Requests
+  case class AddInstance(spec: RunSpec, restartOnExit: Boolean, restartOnFailure: Boolean, id: Option[UUID]) extends Requests
 
   case class InstanceCreated(instanceId: Instance.Id, id: Option[UUID]) extends Requests
 
@@ -76,7 +76,7 @@ private class RunSpecLauncherActor(
 
   private[this] val remainingLaunches: mutable.Queue[Launch] = mutable.Queue.empty
 
-  private[this] var launchingRunSpecs: Map[PathId, RunSpec] = Map.empty
+  private[this] var launchingRunSpecs: Map[PathId, (RunSpec, Boolean, Boolean)] = Map.empty
 
   /** Decorator to use this actor as a [[OfferMatcher#TaskOpSource]] */
   private[this] val myselfAsLaunchSource = InstanceOpSourceDelegate(self)
@@ -177,7 +177,7 @@ private class RunSpecLauncherActor(
           //
           // B) If a reservation timed out, already rejected offers might become eligible for creating new reservations.
           launchingRunSpecs.get(update.id.runSpecId) match {
-            case Some(runSpec) =>
+            case Some((runSpec, _, _)) =>
               if (runSpec.constraints.nonEmpty || (runSpec.residency.isDefined && shouldLaunchInstances)) {
                 maybeOfferReviver.foreach (_.reviveOffers ())
               }
@@ -195,9 +195,9 @@ private class RunSpecLauncherActor(
   }
 
   private[this] def receiveAddInstance: Receive = {
-    case RunSpecLauncherActor.AddInstance(newRunSpec, uuid) =>
-      logger.info(s"queue new instance for for ${newRunSpec.id}")
-      launchingRunSpecs += newRunSpec.id -> newRunSpec
+    case RunSpecLauncherActor.AddInstance(newRunSpec, restartOnExit, restartOnFailure, uuid) =>
+      logger.info(s"queue new instance for for ${newRunSpec.id} with restartOnExit=$restartOnExit and restartOnFailure=$restartOnFailure")
+      launchingRunSpecs += newRunSpec.id -> ((newRunSpec, restartOnExit, restartOnFailure))
       remainingLaunches.enqueue(Launch(newRunSpec.id, uuid, sender()))
 
       OfferMatcherRegistration.manageOfferMatcherStatus()
@@ -214,8 +214,8 @@ private class RunSpecLauncherActor(
       val maybeMatched = remainingLaunches.foldLeft[Option[OfferMatchResult.Match]](None)((maybeMatch, launch) => {
         maybeMatch.orElse(
           launchingRunSpecs.get(launch.runSpecId) match {
-            case Some(runSpec) =>
-              val matchRequest = InstanceOpFactory.Request(runSpec, offer, reachableInstances, additionalLaunches = 1)
+            case Some((runSpec, restartOnExit, restartOnFailure)) =>
+              val matchRequest = InstanceOpFactory.Request(runSpec, restartOnExit, restartOnFailure, offer, reachableInstances, additionalLaunches = 1)
               instanceOpFactory.matchOfferRequest(matchRequest) match {
                 case matched: OfferMatchResult.Match =>
                   inFlightLaunches += matched.instanceOp.instanceId -> launch
@@ -281,7 +281,7 @@ private class RunSpecLauncherActor(
     }
 
     launchingRunSpecs.get(instanceOp.instanceId.runSpecId) match {
-      case Some(runSpec) =>
+      case Some((runSpec, _, _)) =>
         updateActorState()
         logger.debug(s"Request ${instanceOp.getClass.getSimpleName} for instance '${instanceOp.instanceId.idString}', version '${runSpec.version}'. $status")
         promise.trySuccess(MatchedInstanceOps(offer.getId, Seq(InstanceOpWithSource(myselfAsLaunchSource, instanceOp))))
