@@ -24,7 +24,6 @@ import mesosphere.marathon.core.launchqueue.LaunchQueueModule
 import mesosphere.marathon.core.leadership.LeadershipModule
 import mesosphere.marathon.core.matcher.base.util.StopOnFirstMatchingOfferMatcher
 import mesosphere.marathon.core.matcher.manager.OfferMatcherManagerModule
-import mesosphere.marathon.core.matcher.reconcile.OfferMatcherReconciliationModule
 import mesosphere.marathon.core.plugin.PluginModule
 import mesosphere.marathon.core.pod.PodModule
 import mesosphere.marathon.core.readiness.ReadinessModule
@@ -104,15 +103,6 @@ class CoreModuleImpl @Inject() (
     leadershipModule
   )
 
-  private[this] lazy val offerMatcherReconcilerModule =
-    new OfferMatcherReconciliationModule(
-      clock,
-      actorSystem.eventStream,
-      taskTrackerModule.instanceTracker,
-      storageModule.groupRepository,
-      leadershipModule
-    )
-
   override lazy val launcherModule = new LauncherModule(
     // infrastructure
     marathonConf,
@@ -123,7 +113,6 @@ class CoreModuleImpl @Inject() (
 
     // internal core dependencies
     StopOnFirstMatchingOfferMatcher(
-      offerMatcherReconcilerModule.offerMatcherReconciler,
       offerMatcherManagerModule.globalOfferMatcher
     ),
     pluginModule.pluginManager,
@@ -158,12 +147,6 @@ class CoreModuleImpl @Inject() (
 
   flowActors.refillOfferMatcherManagerLaunchTokens(
     marathonConf, taskBusModule.taskStatusObservables, offerMatcherManagerModule.subOfferMatcherManager)
-
-  /** Combine offersWanted state from multiple sources. */
-  private[this] lazy val offersWanted =
-    offerMatcherManagerModule.globalOfferMatcherWantsOffers
-      .combineLatest(offerMatcherReconcilerModule.offersWantedObservable)
-      .map { case (managerWantsOffers, reconciliationWantsOffers) => managerWantsOffers || reconciliationWantsOffers }
 
   // EVENT
 
@@ -226,7 +209,6 @@ class CoreModuleImpl @Inject() (
   taskJobsModule.expungeOverdueLostTasks(taskTrackerModule.instanceTracker, taskTrackerModule.stateOpProcessor)
   offerMatcherManagerModule
   launcherModule
-  offerMatcherReconcilerModule.start()
   eventModule
   historyModule
   healthModule
