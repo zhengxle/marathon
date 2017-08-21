@@ -268,12 +268,6 @@ private class TaskLauncherActor(
         case update: InstanceDeleted =>
           logger.info(s"receiveInstanceUpdate: ${update.id} was deleted (${update.condition})")
           removeInstance(update.id)
-        // A) If the app has constraints, we need to reconsider offers that
-        // we already rejected. E.g. when a host:unique constraint prevented
-        // us to launch tasks on a particular node before, we need to reconsider offers
-        // of that node after a task on that node has died.
-        //
-        // B) If a reservation timed out, already rejected offers might become eligible for creating new reservations.
       }
       sender() ! Done
   }
