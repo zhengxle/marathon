@@ -6,7 +6,6 @@ import os
 import platform
 import time
 import socket
-import errno
 
 # Ensure compatibility with Python 2 and 3.
 # See https://github.com/JioCloud/python-six/blob/master/six.py for details.
