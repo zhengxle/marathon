@@ -24,6 +24,7 @@ import mesosphere.marathon.core.launchqueue.LaunchQueueModule
 import mesosphere.marathon.core.leadership.LeadershipModule
 import mesosphere.marathon.core.matcher.base.util.StopOnFirstMatchingOfferMatcher
 import mesosphere.marathon.core.matcher.manager.OfferMatcherManagerModule
+import mesosphere.marathon.core.matcher.reconcile.OfferMatcherReconciliationModule
 import mesosphere.marathon.core.plugin.PluginModule
 import mesosphere.marathon.core.pod.PodModule
 import mesosphere.marathon.core.readiness.ReadinessModule
@@ -103,6 +104,12 @@ class CoreModuleImpl @Inject() (
     leadershipModule
   )
 
+  private[this] lazy val offerMatcherReconcilerModule =
+    new OfferMatcherReconciliationModule(
+      taskTrackerModule.instanceTracker,
+      storageModule.groupRepository
+    )
+
   override lazy val launcherModule = new LauncherModule(
     // infrastructure
     marathonConf,
@@ -113,6 +120,7 @@ class CoreModuleImpl @Inject() (
 
     // internal core dependencies
     StopOnFirstMatchingOfferMatcher(
+      offerMatcherReconcilerModule.offerMatcherReconciler,
       offerMatcherManagerModule.globalOfferMatcher
     ),
     pluginModule.pluginManager,
