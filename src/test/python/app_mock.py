@@ -131,11 +131,13 @@ if __name__ == "__main__":
 
     HTTPServer.allow_reuse_address = True
     start_counter = 1
+    started = False
 
-    while True:
+    while started == False:
         try:
             httpd = HTTPServer(("", port),
                                make_handler(app_id, version, task_id, base_url))
+            started = True
         except socket.error:
             logging.error("Processes bound on port %d", port)
             os.system('ps -a | grep "$(lsof -ti :{})"'.format(port))
