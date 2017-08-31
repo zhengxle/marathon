@@ -6,6 +6,7 @@ import platform
 import signal
 import socket
 import sys
+from time import sleep
 
 # Ensure compatibility with Python 2 and 3.
 # See https://github.com/JioCloud/python-six/blob/master/six.py for details.
@@ -137,9 +138,10 @@ if __name__ == "__main__":
                                make_handler(app_id, version, task_id, base_url))
         except socket.error:
             logging.error("Processes bound on port %d", port)
-            os.system("ps -a | grep $(lsof -ti :{})".format(port))
+            os.system('ps -a | grep "$(lsof -ti :{})"'.format(port))
             if (start_counter >= 3):
                 raise
+            sleep(1) # sleep 1 second to allow previous processes to be killed successfully
         start_counter += 1
 
     msg = "AppMock[%s %s]: %s has taken the stage at port %d. "\
