@@ -117,7 +117,7 @@ def make_handler(app_id, version, task_id, base_url):
 
 
 def try_to_start_server(port, app_id, version, task_id, base_url):
-    start_counter = 1
+    start_counter = 0
 
     while True:
         try:
@@ -126,7 +126,7 @@ def try_to_start_server(port, app_id, version, task_id, base_url):
         except socket.error:
             logging.error("Processes bound on port %d", port)
             os.system('ps -a | grep "$(lsof -ti :{})"'.format(port))
-            if (start_counter >= 3):
+            if (start_counter >= 2):
                 raise
             sleep(1) # sleep 1 second to allow previous processes to be killed successfully
         start_counter += 1
