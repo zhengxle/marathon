@@ -116,6 +116,21 @@ def make_handler(app_id, version, task_id, base_url):
     return Handler
 
 
+def try_to_start_server(port, app_id, version, task_id, base_url):
+    start_counter = 1
+
+    while True:
+        try:
+            return HTTPServer(("", port),
+                               make_handler(app_id, version, task_id, base_url))
+        except socket.error:
+            logging.error("Processes bound on port %d", port)
+            os.system('ps -a | grep "$(lsof -ti :{})"'.format(port))
+            if (start_counter >= 3):
+                raise
+            sleep(1) # sleep 1 second to allow previous processes to be killed successfully
+        start_counter += 1
+
 if __name__ == "__main__":
     logging.basicConfig(
         format='%(asctime)s %(levelname)-8s: %(message)s',
@@ -130,21 +145,7 @@ if __name__ == "__main__":
     task_id = os.getenv("MESOS_TASK_ID", "<UNKNOWN>")
 
     HTTPServer.allow_reuse_address = True
-    start_counter = 1
-    started = False
-
-    while started == False:
-        try:
-            httpd = HTTPServer(("", port),
-                               make_handler(app_id, version, task_id, base_url))
-            started = True
-        except socket.error:
-            logging.error("Processes bound on port %d", port)
-            os.system('ps -a | grep "$(lsof -ti :{})"'.format(port))
-            if (start_counter >= 3):
-                raise
-            sleep(1) # sleep 1 second to allow previous processes to be killed successfully
-        start_counter += 1
+    httpd = try_to_start_server(port, app_id, version, task_id, base_url)
 
     msg = "AppMock[%s %s]: %s has taken the stage at port %d. "\
           "Will query %s for health and readiness status."
