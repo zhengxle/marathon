@@ -131,6 +131,7 @@ def try_to_start_server(port, app_id, version, task_id, base_url):
             sleep(1) # sleep 1 second to allow previous processes to be killed successfully
         start_counter += 1
 
+
 if __name__ == "__main__":
     logging.basicConfig(
         format='%(asctime)s %(levelname)-8s: %(message)s',
