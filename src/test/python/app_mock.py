@@ -129,13 +129,18 @@ if __name__ == "__main__":
     task_id = os.getenv("MESOS_TASK_ID", "<UNKNOWN>")
 
     HTTPServer.allow_reuse_address = True
-    try:
-        httpd = HTTPServer(("", port),
-                           make_handler(app_id, version, task_id, base_url))
-    except socket.error:
-        logging.error("Processes bound on port %d", port)
-        os.system("ps -a | grep $(lsof -ti :{})".format(port))
-        raise
+    start_counter = 1
+
+    while True:
+        try:
+            httpd = HTTPServer(("", port),
+                               make_handler(app_id, version, task_id, base_url))
+        except socket.error:
+            logging.error("Processes bound on port %d", port)
+            os.system("ps -a | grep $(lsof -ti :{})".format(port))
+            if (start_counter >= 3):
+                raise
+        start_counter += 1
 
     msg = "AppMock[%s %s]: %s has taken the stage at port %d. "\
           "Will query %s for health and readiness status."
