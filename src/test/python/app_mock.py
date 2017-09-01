@@ -122,13 +122,14 @@ def try_to_start_server(port, app_id, version, task_id, base_url):
     while True:
         try:
             return HTTPServer(("", port),
-                               make_handler(app_id, version, task_id, base_url))
+                              make_handler(app_id, version, task_id, base_url))
         except socket.error:
             logging.error("Processes bound on port %d", port)
             os.system('ps -a | grep "$(lsof -ti :{})"'.format(port))
             if (start_counter >= 2):
                 raise
-            sleep(1) # sleep 1 second to allow previous processes to be killed successfully
+            # sleep 1 second to allow previous processes to be killed
+            sleep(1)
         start_counter += 1
 
 
