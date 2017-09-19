@@ -7,14 +7,14 @@ node('shakedown') {
 
     // Hardcoded default values are:
     // DC/OS OS: channel="testing/pull/1739", for open cluster
-    properties [
+    properties([
       pipelineTriggers([cron('0 */8 * * *')]),
       parameters([
         string(name: 'channel',
                defaultValue: 'testing/pull/1739',
                description: 'PR to start the cluster from e.g. testing/pull/1739'
         )])
-    ]
+    ])
 
     stage("Run Jepsen Test Pipeline") {
       try {
