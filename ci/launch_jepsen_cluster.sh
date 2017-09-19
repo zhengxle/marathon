@@ -53,16 +53,16 @@ function create-junit-xml {
 	EOF
 }
 
-if ! ./dcos-launch create; then
-  create-junit-xml "dcos-launch" "cluster.create" "Cluster launch failed."
-  exit 1
-fi
-if ! ./dcos-launch wait; then
-  create-junit-xml "dcos-launch" "cluster.create" "Cluster did not start in time."
-  exit 1
-fi
+#if ! ./dcos-launch create; then
+#  create-junit-xml "dcos-launch" "cluster.create" "Cluster launch failed."
+#  exit 1
+#fi
+#if ! ./dcos-launch wait; then
+#  create-junit-xml "dcos-launch" "cluster.create" "Cluster did not start in time."
+#  exit 1
+#fi
 
 # Return dcos_url
-echo "http://$(./dcos-launch describe | jq -r ".masters[0].public_ip")/"
-echo "http://$(./dcos-launch describe | jq -r ".masters[1].public_ip")/"
-echo "http://$(./dcos-launch describe | jq -r ".masters[2].public_ip")/"
+#echo "http://$(./dcos-launch describe | jq -r ".masters[0].public_ip")/"
+#echo "http://$(./dcos-launch describe | jq -r ".masters[1].public_ip")/"
+#echo "http://$(./dcos-launch describe | jq -r ".masters[2].public_ip")/"
