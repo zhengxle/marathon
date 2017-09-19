@@ -2,24 +2,18 @@
 
 set -x -e -o pipefail
 
-# Two parameters are expected: CHANNEL and VARIANT where CHANNEL is the respective PR and
-# VARIANT could be one of four custer variants: open, strict, permissive and disabled
-if [ "$#" -ne 2 ]; then
-    echo "Expected 2 parameters: <channel> and <variant> e.g. launch_cluster.sh testing/pull/1739 open"
+# One parameter is expected: CHANNEL which is a pull request for which to run Jepsen tests.
+if [ "$#" -ne 1 ]; then
+    echo "Expected 2 parameters: <channel> and <variant> e.g. launch_jepsen_cluster.sh testing/pull/1739"
     exit 1
 fi
 
 CHANNEL="$1"
-VARIANT="$2"
 
 JOB_NAME_SANITIZED=$(echo "$JOB_NAME" | tr -c '[:alnum:]-' '-')
 DEPLOYMENT_NAME="$JOB_NAME_SANITIZED-$(date +%s)"
 
-if [ "$VARIANT" == "open" ]; then
-  TEMPLATE="https://s3.amazonaws.com/downloads.dcos.io/dcos/${CHANNEL}/cloudformation/single-master.cloudformation.json"
-else
-  TEMPLATE="https://s3.amazonaws.com/downloads.mesosphere.io/dcos-enterprise-aws-advanced/${CHANNEL}/${VARIANT}/cloudformation/ee.single-master.cloudformation.json"
-fi
+TEMPLATE="https://s3.amazonaws.com/downloads.dcos.io/dcos/${CHANNEL}/cloudformation/multi-master.cloudformation.json"
 
 echo "Workspace: ${WORKSPACE}"
 echo "Using: ${TEMPLATE}"
@@ -39,8 +33,8 @@ aws_region: us-west-2
 template_parameters:
     KeyName: default
     AdminLocation: 0.0.0.0/0
-    PublicSlaveInstanceCount: 1
-    SlaveInstanceCount: 5
+    PublicSlaveInstanceCount: 0
+    SlaveInstanceCount: 3
 EOF
 
 function create-junit-xml {
@@ -70,3 +64,5 @@ fi
 
 # Return dcos_url
 echo "http://$(./dcos-launch describe | jq -r ".masters[0].public_ip")/"
+echo "http://$(./dcos-launch describe | jq -r ".masters[1].public_ip")/"
+echo "http://$(./dcos-launch describe | jq -r ".masters[2].public_ip")/"

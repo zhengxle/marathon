@@ -15,7 +15,7 @@ TERM=velocity shakedown \
   --stdout-inline \
   --ssl-no-verify \
   --timeout 360000 \
-  --pytest-option "--junitxml=shakedown.xml" \
+  --pytest-option "--junitxml=report.xml" \
   --ssh-key-file "$CLI_TEST_SSH_KEY" \
   --dcos-url "$DCOS_URL" tests/system/test_marathon_root.py tests/system/test_marathon_universe.py
 

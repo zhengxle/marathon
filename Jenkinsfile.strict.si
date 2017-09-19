@@ -33,7 +33,7 @@ node('shakedown') {
             sh """ci/system_integration.sh ${dcos_url}"""
           }
         } finally {
-            junit allowEmptyResults: true, testResults: 'shakedown.xml'
+            junit allowEmptyResults: true, testResults: 'report.xml'
         }
     }
   }
