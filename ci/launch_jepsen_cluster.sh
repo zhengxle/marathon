@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -x -e -o pipefail
+set -e -o pipefail
 
 # One parameter is expected: CHANNEL which is a pull request for which to run Jepsen tests.
 if [ "$#" -ne 1 ]; then
@@ -20,7 +20,7 @@ echo "Using: ${TEMPLATE}"
 
 apk update
 apk --upgrade add gettext wget
-wget 'https://downloads.dcos.io/dcos-test-utils/bin/linux/dcos-launch' && chmod +x dcos-launch
+wget "https://downloads.dcos.io/dcos-test-utils/bin/linux/dcos-launch" && chmod +x dcos-launch
 
 
 envsubst <<EOF > config.yaml
