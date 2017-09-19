@@ -16,7 +16,7 @@ node('JenkinsMarathonCI-Debian8-2017-07-18') {
         )])
     ]]
 
-    stage("Run System Integration Test Pipeline") {
+    stage("Run Jepsen Test Pipeline") {
       try {
         checkout scm
         withCredentials([
