@@ -1,7 +1,7 @@
 #!/usr/bin/env groovy
 
 timeout(120) {
-node('JenkinsMarathonCI-Debian8-2017-07-18') {
+node('shakedown') {
   wrap([$class: 'MesosSingleUseSlave']) {
   wrap([$class: 'AnsiColorBuildWrapper', 'colorMapName': 'XTerm']) {
 
