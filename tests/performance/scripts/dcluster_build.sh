@@ -12,6 +12,9 @@ if [ -z "$MARATHON_DIR" ]; then
   exit 253
 fi
 
+# Use the short git tag as the docker image version
+MARATHON_HASH=$(cd $MARATHON_DIR && git rev-parse --short HEAD)
+
 (
   # Cleanup marathon
   cd $MARATHON_DIR;
@@ -20,7 +23,7 @@ fi
 
   # Build docker image and keep track of the build log
   # in order to extract the marathon image at the end.
-  sbt docker:publishLocal | tee build.log
+  docker build -t mesosphere/marathon:${MARATHON_HASH} .
 )
 RET=$?; [ $RET -ne 0 ] && exit $RET
 
@@ -28,5 +31,5 @@ RET=$?; [ $RET -ne 0 ] && exit $RET
 MARATHON_VERSION_EXPR=$(tail $MARATHON_DIR/build.log  | grep 'Built image' | awk '{print $4}' | sed $'s,\x1b\\[[0-9;]*[a-zA-Z],,g')
 
 # Export marathon image and version for other scripts
-export MARATHON_IMAGE=$(echo $MARATHON_VERSION_EXPR | awk -F':' '{print $1}')
-export MARATHON_VERSION=$(echo $MARATHON_VERSION_EXPR | awk -F':' '{print $2}')
+export MARATHON_IMAGE="mesosphere/marathon"
+export MARATHON_VERSION=${MARATHON_HASH}
