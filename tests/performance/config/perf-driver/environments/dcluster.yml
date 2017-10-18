@@ -7,6 +7,17 @@
 # scala properly configured.                                  #
 # ----------------------------------------------------------- #
 
+# Global test configuration
+# ===========================
+config:
+
+  # We require the following definitions to be present (might be defined by
+  # other fragments, or must be given by the user)
+  definitions:
+    - name: dcluster_cmd_prefix
+      desc: The prefix to marathon-dcluster binary, including the configuration parameters
+      required: yes
+
 # Test Metadata
 # ===========================
 meta:
@@ -19,3 +30,12 @@ define:
   # We are going to launch marathon ourselves, therefore we are defining
   # `marathon_url` to point to localhost
   marathon_url: http://127.0.0.1:8080
+
+# One-shot tasks
+# ===========================
+tasks:
+
+  # To maintain test integrity we are restarting marathon at the end of each test
+  - class: tasks.exec.Run
+    cmdline: "{{dcluster_cmd_prefix}} --docker-compose 'restart marathon_1'"
+    at: posttest

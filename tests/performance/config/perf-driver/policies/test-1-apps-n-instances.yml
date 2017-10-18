@@ -58,7 +58,7 @@ policies:
         events:
 
           # Wait until marathon is started before continuing with the tests
-          start: MarathonStartedEvent:single
+          start: MarathonSSEConnectedEvent
 
           # We advance to next values every time we receive a deployment completion
           advance: MarathonDeploymentSuccessEvent MarathonDeploymentFailedEvent

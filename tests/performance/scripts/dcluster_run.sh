@@ -57,6 +57,7 @@ for TEST_CONFIG in $TESTS_DIR/test-*.yml; do
     -D "jmx_port=9010" \
     -D "datadog_api_key=${DATADOG_API_KEY}" \
     -D "datadog_app_key=${DATADOG_APP_KEY}" \
+    -D "dcluster_cmd_prefix='marathon-dcluster $CLUSTER_CONFIG --marathon $MARATHON_VERSION  --marathon_image $MARATHON_IMAGE'" \
     $*
   EXITCODE=$?; [ $EXITCODE -ne 0 ] && break
 
