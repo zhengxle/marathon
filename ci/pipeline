@@ -258,6 +258,8 @@ def release(requestVersion: String, gitSha: String, latest: Boolean = false): Un
   println(s"Releasing version: $releaseVersion")
   %('git, "checkout", gitSha)
 
+  
+  Try(%('git, "tag", "-d", tagVersion))
   %('git, "tag", "-a", tagVersion, "-m", tagVersion)
   val version = build()
 
