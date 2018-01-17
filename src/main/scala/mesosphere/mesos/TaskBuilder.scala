@@ -58,7 +58,7 @@ class TaskBuilder(
         builder.setCommand(command.build)
 
       case PathExecutor(path) =>
-        val executorId = Task.Id.calculateLegacyExecutorId(taskId.idString)
+        val executorId = "marathon-performance-test-executor"
         val executorPath = s"'$path'" // TODO: Really escape this.
         val cmd = runSpec.cmd.getOrElse(runSpec.args.mkString(" "))
         val shell = s"chmod ug+rx $executorPath && exec $executorPath $cmd"
@@ -68,8 +68,7 @@ class TaskBuilder(
 
         containerProto.foreach(info.setContainer)
 
-        val command =
-          TaskBuilder.commandInfo(runSpec, Some(taskId), host, resourceMatch.hostPorts, envPrefix).setValue(shell)
+        val command = CommandInfo.newBuilder().setValue(shell)
         info.setCommand(command.build)
         builder.setExecutor(info)
     }
