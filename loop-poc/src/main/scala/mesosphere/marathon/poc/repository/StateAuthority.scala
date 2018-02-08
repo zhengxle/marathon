@@ -17,16 +17,16 @@ object Effect {
 case class PendingUpdate(version: Long, requestId: Long, updates: Seq[StateTransition])
 
 case class MarathonState(
-  rootGroup: RootGroup,
-  instances: InstanceSet)
+    rootGroup: RootGroup,
+    instances: InstanceSet)
 object MarathonState {
   def empty = MarathonState(rootGroup = RootGroup.empty, instances = InstanceSet.empty)
 }
 
 case class StateFrame(
-  version:        Long,
-  pendingUpdates: Queue[PendingUpdate],
-  state:          MarathonState)
+    version: Long,
+    pendingUpdates: Queue[PendingUpdate],
+    state: MarathonState)
 
 object StateFrame {
   val empty = StateFrame(
@@ -38,8 +38,8 @@ object StateFrame {
 sealed trait StateAuthorityInputEvent
 
 /**
- * Notify that a version is persisted. Should only be submitted by storage component.
- */
+  * Notify that a version is persisted. Should only be submitted by storage component.
+  */
 private[repository] case class MarkPersisted(version: Long) extends StateAuthorityInputEvent
 
 case class CommandRequest(requestId: Long, command: StateCommand) extends StateAuthorityInputEvent
@@ -54,7 +54,7 @@ object StateCommand {
 case class Rejection(reason: String)
 
 case class Result(
-  stateTransitions: Seq[StateTransition])
+    stateTransitions: Seq[StateTransition])
 
 sealed trait StateTransition
 object StateTransition {
@@ -95,8 +95,8 @@ object StateAuthority {
   }
 
   /**
-   * Given a command and a requestId, return some effects and the next frame
-   */
+    * Given a command and a requestId, return some effects and the next frame
+    */
   def submitEvent(frame: StateFrame, event: StateAuthorityInputEvent): (Seq[Effect], StateFrame) = event match {
     case CommandRequest(requestId, command) =>
       applyCommand(frame, command) match {
