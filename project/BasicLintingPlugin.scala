@@ -25,7 +25,7 @@ object BasicLintingPlugin extends AutoPlugin {
   )
 
   def checkBasicLinting(logger: Logger, doublePackageRoot: String, sourceDirectories: Seq[File]): Unit = {
-    var packageError = false
+    var packageError: List[String] = Nil
     var otherLintError = false
 
     sourceDirectories.descendantsExcept("*.scala", NothingFilter).get.foreach { file =>
@@ -43,13 +43,13 @@ object BasicLintingPlugin extends AutoPlugin {
                  |package $doublePackageRoot
                  |package ${pkg.replaceAll(s"package $doublePackageRoot.", "")}
               """.stripMargin)
-            packageError = true
+            packageError = file.toString :: packageError
           }
         }
       }
     }
-    if (packageError) {
-      sys.error("One or more files didn't use proper double package notation.")
+    if (packageError.nonEmpty) {
+      sys.error(s"One or more files didn't use proper double package notation: ${packageError.mkString("\n")}")
     }
     if (otherLintError) {
       sys.error("Other lint errors found.")
