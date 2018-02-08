@@ -10,12 +10,12 @@ import org.scalatest.concurrent.ScalaFutures
 import scala.concurrent.ExecutionContextExecutor
 
 trait UnitTestLike extends WordSpecLike
-    with GivenWhenThen
-    with ScalaFutures
-    with BeforeAndAfter
-    with BeforeAndAfterAll
-    with BeforeAndAfterEach
-    with Matchers {
+  with GivenWhenThen
+  with ScalaFutures
+  with BeforeAndAfter
+  with BeforeAndAfterAll
+  with BeforeAndAfterEach
+  with Matchers {
 }
 
 trait UnitTest extends WordSpec with UnitTestLike

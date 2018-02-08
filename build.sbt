@@ -346,3 +346,15 @@ lazy val `mesos-client` = (project in file("mesos-client"))
       scalapb.gen() -> (sourceManaged in Compile).value
     )
   )
+
+// see also mesos-client/README.md
+lazy val `loop-poc` = (project in file("loop-poc"))
+  .configs(IntegrationTest)
+  .enablePlugins(GitBranchPrompt, BasicLintingPlugin, TestWithCoveragePlugin)
+  .settings(commonSettings: _*)
+  .settings(formatSettings: _*)
+  .dependsOn(`mesos-client`)
+  .settings(
+    name := "loop-poc",
+    libraryDependencies ++= Dependencies.loopPoc
+  )

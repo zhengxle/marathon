@@ -19,6 +19,15 @@ object Dependencies {
     wixAccord % "compile"
   )
 
+  val loopPoc = Seq(
+    akkaStream % "compile",
+
+    monocleCore % "compile",
+    monocleMacro % "compile",
+    Test.monocleLaw % "compile",
+    Test.scalatest % "test"
+  )
+
   val mesosClient = Seq(
     playJson % "compile",
     scalaLogging % "compile",
@@ -125,6 +134,7 @@ object Dependency {
     val JUnitBenchmarks = "0.7.2"
     val JMH = "1.19"
     val ScalaCheck = "1.13.5"
+    val MonocleVersion = "1.4.0" // 1.5.0-cats-M1 based on cats 1.0.0-MF
   }
 
   val excludeMortbayJetty = ExclusionRule(organization = "org.mortbay.jetty")
@@ -162,6 +172,8 @@ object Dependency {
   val commonsCompress = "org.apache.commons" % "commons-compress" % V.ApacheCommonsCompress
   val commonsIO = "commons-io" % "commons-io" % V.ApacheCommonsIO
   val scalaPb = "com.trueaccord.scalapb" %% "compilerplugin" % V.ScalaPb
+  val monocleCore = "com.github.julien-truffaut" %%  "monocle-core"  % V.MonocleVersion
+  val monocleMacro = "com.github.julien-truffaut" %%  "monocle-macro" % V.MonocleVersion
 
   object Curator {
     /**
@@ -219,5 +231,6 @@ object Dependency {
     val diffson = "org.gnieh" %% "diffson-play-json" % V.Diffson
     val junit = "junit" % "junit" % V.JUnit
     val scalacheck = "org.scalacheck" %% "scalacheck" % V.ScalaCheck
+    val monocleLaw = "com.github.julien-truffaut" %%  "monocle-law"  % V.MonocleVersion
   }
 }

@@ -1,10 +1,10 @@
 package mesosphere.marathon
-package repository
+package poc.repository
 
 import akka.stream.OverflowStrategy
 import akka.stream.scaladsl.{ Keep, Sink, Source }
 import java.util.UUID
-import mesosphere.marathon.state.{ RunSpec, RunSpecRef, Instance }
+import mesosphere.marathon.poc.state.{ RunSpec, RunSpecRef, Instance }
 import org.scalatest.Inside
 
 class StateAuthorityTest extends AkkaUnitTestLike with Inside {
@@ -18,7 +18,8 @@ class StateAuthorityTest extends AkkaUnitTestLike with Inside {
       .run
 
     When("I submit a command to add a task for a RunSpec that does not exist")
-    input.offer(CommandRequest(requestId,
+    input.offer(CommandRequest(
+      requestId,
       StateCommand.AddInstance(Instance(instanceId, RunSpecRef("/lol", "blue")))))
 
     And("the failure gets published")
@@ -55,10 +56,9 @@ class StateAuthorityTest extends AkkaUnitTestLike with Inside {
         update.version shouldBe 2
         inside(update.updates) {
           case Seq(update: StateTransition.RunSpecUpdated) =>
-            update.ref.id shouldBe("/lol")
+            update.ref.id shouldBe ("/lol")
         }
     }
-
 
     When("the storage layer confirms the persistence")
     input.offer(MarkPersisted(2))

@@ -1,8 +1,9 @@
-package mesosphere.marathon.repository
+package mesosphere.marathon
+package poc.repository
 
 import akka.NotUsed
 import akka.stream.scaladsl.Flow
-import mesosphere.marathon.state._
+import mesosphere.marathon.poc.state._
 
 object StorageLayer {
   sealed trait StorageCommand {
@@ -10,7 +11,7 @@ object StorageLayer {
   }
 
   case class StoreApps(
-    runSpec: RunSpec)
+      runSpec: RunSpec)
 
   val storageLayer: Flow[StorageCommand, Int, NotUsed] = ???
 }

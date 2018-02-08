@@ -1,4 +1,5 @@
-package mesosphere.marathon.state
+package mesosphere.marathon
+package poc.state
 
 import scala.collection.immutable.TreeMap
 import monocle.function.At.at
@@ -29,6 +30,7 @@ case class RootGroup(apps: Map[Path, Map[Variant, RunSpec]]) {
   def withApp(runSpec: RunSpec): RootGroup = {
     val runSpecVariants =
       apps.getOrElse(runSpec.id, Map.empty).updated(runSpec.variant, runSpec)
+
     appsLens.
       composeLens(at(runSpec.id)).
       set(Some(runSpecVariants)).

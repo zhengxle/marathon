@@ -1,11 +1,11 @@
 package mesosphere.marathon
-package state
+package poc.state
 
 import java.util.UUID
 import monocle.macros.GenLens
 
 case class InstanceSet(
-  instances: Map[UUID, Instance]) {
+    instances: Map[UUID, Instance]) {
   val instancesLens = GenLens[InstanceSet](_.instances)
 
   def withInstance(instance: Instance): InstanceSet = {

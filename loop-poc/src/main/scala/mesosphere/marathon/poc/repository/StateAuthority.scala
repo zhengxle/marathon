@@ -1,9 +1,9 @@
 package mesosphere.marathon
-package repository
+package poc.repository
 
 import akka.stream.scaladsl.Flow
 import java.util.UUID
-import mesosphere.marathon.state._
+import mesosphere.marathon.poc.state._
 import monocle.macros.syntax.lens._
 import scala.collection.immutable.Queue
 
@@ -16,23 +16,31 @@ object Effect {
 }
 case class PendingUpdate(version: Long, requestId: Long, updates: Seq[StateTransition])
 
-case class Frame(
+case class MarathonState(
   rootGroup: RootGroup,
-  instances: InstanceSet,
-  version: Long,
-  pendingUpdates: Queue[PendingUpdate]
-)
+  instances: InstanceSet)
+object MarathonState {
+  def empty = MarathonState(rootGroup = RootGroup.empty, instances = InstanceSet.empty)
+}
 
-object Frame {
-  val empty = Frame(rootGroup = RootGroup.empty, instances = InstanceSet.empty, version = 1, Queue.empty)
+case class StateFrame(
+  version:        Long,
+  pendingUpdates: Queue[PendingUpdate],
+  state:          MarathonState)
+
+object StateFrame {
+  val empty = StateFrame(
+    state = MarathonState.empty,
+    version = 1,
+    pendingUpdates = Queue.empty)
 }
 
 sealed trait StateAuthorityInputEvent
 
 /**
-  * Notify that a version is persisted. Should only be submitted by storage component.
-  */
-private [repository] case class MarkPersisted(version: Long) extends StateAuthorityInputEvent
+ * Notify that a version is persisted. Should only be submitted by storage component.
+ */
+private[repository] case class MarkPersisted(version: Long) extends StateAuthorityInputEvent
 
 case class CommandRequest(requestId: Long, command: StateCommand) extends StateAuthorityInputEvent
 
@@ -45,10 +53,8 @@ object StateCommand {
 
 case class Rejection(reason: String)
 
-
 case class Result(
-  stateTransitions: Seq[StateTransition],
-)
+  stateTransitions: Seq[StateTransition])
 
 sealed trait StateTransition
 object StateTransition {
@@ -56,8 +62,8 @@ object StateTransition {
   case class InstanceUpdated(instanceId: UUID, instance: Option[Instance]) extends StateTransition
 
   // extract and share with Marathon scheduler
-  def applyTransitions(frame: Frame, effects: Seq[StateTransition]): Frame = {
-    val frameWithUpdate = effects.foldLeft(frame) {
+  def applyTransitions(frame: MarathonState, effects: Seq[StateTransition]): MarathonState = {
+    effects.foldLeft(frame) {
       case (frame, update: InstanceUpdated) =>
         update.instance match {
           case Some(instance) =>
@@ -73,14 +79,12 @@ object StateTransition {
             frame.lens(_.rootGroup).modify(_.withoutApp(update.ref))
         }
     }
-    frameWithUpdate.lens(_.version).modify(_ + 1)
   }
 }
 
 object StateAuthority {
-
   val commandProcessorFlow = Flow[StateAuthorityInputEvent].statefulMapConcat { () =>
-    var currentFrame: Frame = Frame.empty
+    var currentFrame: StateFrame = StateFrame.empty
 
     { event =>
 
@@ -91,22 +95,29 @@ object StateAuthority {
   }
 
   /**
-    * Given a command and a requestId, return some effects and the next frame
-    */
-  def submitEvent(frame: Frame, event: StateAuthorityInputEvent): (Seq[Effect], Frame) = event match {
+   * Given a command and a requestId, return some effects and the next frame
+   */
+  def submitEvent(frame: StateFrame, event: StateAuthorityInputEvent): (Seq[Effect], StateFrame) = event match {
     case CommandRequest(requestId, command) =>
       applyCommand(frame, command) match {
         case result @ Left(failure) =>
           // issue failure for requestId
-          ( List(Effect.PublishResult(requestId, result)),
+          (
+            List(Effect.PublishResult(requestId, result)),
             frame)
         case Right(result) =>
-          val nextFrame = StateTransition.applyTransitions(frame, result.stateTransitions)
+
+          //    frameWithUpdate.lens(_.version).modify(_ + 1)
+
+          val nextFrame = frame
+            .lens(_.version).modify(_ + 1)
+            .lens(_.state).modify(StateTransition.applyTransitions(_, result.stateTransitions))
           val withUpdates = nextFrame.lens(_.pendingUpdates).modify { pendingUpdates =>
             pendingUpdates.enqueue(PendingUpdate(nextFrame.version, requestId, result.stateTransitions))
           }
 
-          ( List(Effect.PersistUpdates(nextFrame.version, result.stateTransitions)),
+          (
+            List(Effect.PersistUpdates(nextFrame.version, result.stateTransitions)),
             withUpdates)
       }
     case MarkPersisted(version) =>
@@ -116,10 +127,10 @@ object StateAuthority {
       val effects: List[Effect] = Effect.PublishUpdates(updates.flatMap(_.updates)) ::
         updates.map { u => Effect.PublishResult(u.requestId, Right(Result(u.updates))) }
 
-      (effects, nextFrame )
+      (effects, nextFrame)
   }
 
-  def applyCommand(frame: Frame, command: StateCommand): Either[Rejection, Result] = {
+  def applyCommand(frame: StateFrame, command: StateCommand): Either[Rejection, Result] = {
     command match {
       case addApp: StateCommand.PutApp =>
         // we'd apply a validation here
@@ -128,7 +139,7 @@ object StateAuthority {
             Seq(
               StateTransition.RunSpecUpdated(ref = addApp.runSpec.ref, runSpec = Some(addApp.runSpec)))))
       case addInstance: StateCommand.AddInstance =>
-        if (frame.rootGroup.get(addInstance.instance.runSpec).isEmpty)
+        if (frame.state.rootGroup.get(addInstance.instance.runSpec).isEmpty)
           Left(
             Rejection(s"No runSpec ${addInstance.instance.runSpec}"))
         else
