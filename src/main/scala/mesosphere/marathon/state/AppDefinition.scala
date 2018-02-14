@@ -40,6 +40,8 @@ case class AppDefinition(
 
     resources: Resources = Apps.DefaultResources,
 
+    executorId: Option[String] = App.DefaultExecutorId,
+
     executor: String = App.DefaultExecutor,
 
     constraints: Set[Constraint] = AppDefinition.DefaultConstraints,
@@ -180,6 +182,7 @@ case class AppDefinition(
       .setUnreachableStrategy(unreachableStrategy.toProto)
       .setKillSelection(killSelection.toProto)
 
+    executorId.foreach(builder.setExecutorId(_))
     tty.filter(tty => tty).foreach(builder.setTty(_))
     networks.foreach { network => builder.addNetworks(Network.toProto(network)) }
     container.foreach { c => builder.setContainer(ContainerSerializer.toProto(c)) }
@@ -237,6 +240,8 @@ case class AppDefinition(
 
     val tty: Option[Boolean] = if (proto.hasTty) Some(proto.getTty) else AppDefinition.DefaultTTY
 
+    val executorIdOption: Option[String] = if (proto.hasExecutorId) Some(proto.getExecutorId) else AppDefinition.DefaultExecutorId
+
     // TODO (gkleiman): we have to be able to read the ports from the deprecated field in order to perform migrations
     // until the deprecation cycle is complete.
     val portDefinitions =
@@ -254,6 +259,7 @@ case class AppDefinition(
       user = if (proto.getCmd.hasUser) Some(proto.getCmd.getUser) else None,
       cmd = commandOption,
       args = argsOption,
+      executorId = executorIdOption,
       executor = proto.getExecutor,
       instances = proto.getInstances,
       portDefinitions = portDefinitions,
@@ -326,6 +332,7 @@ case class AppDefinition(
           env != to.env ||
           resources != to.resources ||
           executor != to.executor ||
+          executorId != to.executorId ||
           constraints != to.constraints ||
           fetch != to.fetch ||
           portDefinitions != to.portDefinitions ||
@@ -419,6 +426,8 @@ object AppDefinition extends GeneralPurposeCombinators {
   val DefaultAcceptedResourceRoles = Set.empty[String]
 
   val DefaultTTY: Option[Boolean] = None
+
+  val DefaultExecutorId: Option[String] = None
 
   /**
     * should be kept in sync with `Apps.DefaultNetworks`

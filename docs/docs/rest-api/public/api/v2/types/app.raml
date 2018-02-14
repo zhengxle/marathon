@@ -185,6 +185,16 @@ types:
           Different executors are available.
           The simplest one (and the one configured by default if none is given) is `//cmd`,
           which takes the cmd and executes that on the shell level.
+      executorId?:
+        type: strings.Name
+        (pragma.omitEmpty):
+        description: |
+          An executor id of the executor to launch this application. Note that all application sharing the same
+          executor id will share the same executor instance allowing to save resources. The downfall is that all
+          the apps started with the same executo id must have identical `TaskInfo.ExecutorInfo`. Among other things that
+          means environment variables must be identical. Since marathon would automatically generate per-task environment
+          variables like `MARATHON_APP_VERSION` or `MESOS_TASK_ID` this will not work. For this reason generating of above
+          mentioned environment variables is skipped if `executorId` is set.
       fetch?:
         type: artifact.Artifact[]
         (pragma.omitEmpty):

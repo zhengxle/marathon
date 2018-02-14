@@ -58,7 +58,7 @@ class TaskBuilder(
         builder.setCommand(command.build)
 
       case PathExecutor(path) =>
-        val executorId = Task.Id.calculateLegacyExecutorId(taskId.idString)
+        val executorId = runSpec.executorId.getOrElse(Task.Id.calculateLegacyExecutorId(taskId.idString))
         val executorPath = s"'$path'" // TODO: Really escape this.
         val cmd = runSpec.cmd.getOrElse(runSpec.args.mkString(" "))
         val shell = s"chmod ug+rx $executorPath && exec $executorPath $cmd"
@@ -177,7 +177,7 @@ class TaskBuilder(
   }
 }
 
-object TaskBuilder {
+object TaskBuilder extends StrictLogging {
 
   def commandInfo(
     runSpec: AppDefinition,
@@ -192,14 +192,19 @@ object TaskBuilder {
         runSpec.portDefinitions.map(pd => EnvironmentHelper.PortRequest(pd.name, pd.port))
       )
 
-    val envMap: Map[String, String] =
-      taskContextEnv(runSpec, taskId) ++
-        addPrefix(envPrefix, EnvironmentHelper.portsEnv(declaredPorts, hostPorts) ++
-          host.map("HOST" -> _).toMap) ++
-        runSpec.env.collect{ case (k: String, v: EnvVarString) => k -> v.value }
-
     val builder = CommandInfo.newBuilder()
-      .setEnvironment(environment(envMap))
+
+    var envMap: Map[String, String] = runSpec.env.collect{ case (k: String, v: EnvVarString) => k -> v.value }
+
+    // Marathon is setting a bunch of "default" environment variables like MARATHON_APP_VERSION or MESOS_TASK_ID which
+    // are different from task to task. However when using the same executor id to start tasks, `ExecutorInfo` has to
+    // be exactly the same for each task.
+    if (runSpec.executorId.isEmpty) {
+      envMap ++=
+        taskContextEnv(runSpec, taskId) ++
+        addPrefix(envPrefix, EnvironmentHelper.portsEnv(declaredPorts, hostPorts) ++ host.map("HOST" -> _).toMap)
+    }
+    builder.setEnvironment(environment(envMap))
 
     runSpec.cmd match {
       case Some(cmd) if cmd.nonEmpty =>
