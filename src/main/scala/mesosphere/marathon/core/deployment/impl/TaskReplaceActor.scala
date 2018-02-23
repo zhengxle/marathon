@@ -71,6 +71,9 @@ class TaskReplaceActor(
     // reconcile the state from a possible previous run
     reconcileAlreadyStartedInstances()
 
+    // notify launch queue about new run spec
+    updateRunSpec()
+
     // kill old instances to free some capacity
     for (_ <- 0 until ignitionStrategy.nrToKillImmediately) killNextOldInstance()
 
@@ -127,6 +130,10 @@ class TaskReplaceActor(
     logger.info(s"reconcile: found ${instancesAlreadyStarted.size} already started instances " +
       s"and ${oldInstanceIds.size} old instances")
     instancesAlreadyStarted.foreach(reconcileHealthAndReadinessCheck)
+  }
+
+  def updateRunSpec(): Done = {
+    launchQueue.add(runSpec, 0)
   }
 
   // Careful not to make this method completely asynchronous - it changes local actor's state `instancesStarted`.
