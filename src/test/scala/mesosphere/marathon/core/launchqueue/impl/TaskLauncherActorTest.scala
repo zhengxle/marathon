@@ -28,6 +28,7 @@ import org.mockito
 import org.mockito.{ ArgumentCaptor, Mockito }
 
 import scala.collection.immutable.Seq
+import scala.collection.mutable
 import scala.concurrent.Promise
 import scala.concurrent.duration._
 
@@ -74,13 +75,22 @@ class TaskLauncherActorTest extends AkkaUnitTest {
       offerMatchStatisticsActor: TestProbe = TestProbe(),
       localRegion: () => Option[Region] = () => None) {
 
-    def createLauncherRef(instances: Int, appToLaunch: AppDefinition = f.app): ActorRef = {
+    def createLauncherRef(instances: Seq[Instance.Id], appToLaunch: AppDefinition): ActorRef = {
+      val instancesToLaunch = mutable.Map.empty[Instance.Id, InstanceToLaunch]
+      instances.foreach { id =>
+        instancesToLaunch += id -> InstanceToLaunch(appToLaunch)
+      }
       val props = TaskLauncherActor.props(
         launchQueueConfig,
         offerMatcherManager, clock, instanceOpFactory,
         maybeOfferReviver = Some(offerReviver),
         instanceTracker, rateLimiterActor.ref, offerMatchStatisticsActor.ref, localRegion) _
-      system.actorOf(props(appToLaunch, instances))
+      system.actorOf(props(appToLaunch, instancesToLaunch))
+    }
+
+    def createLauncherRef(instances: Int, appToLaunch: AppDefinition = f.app): ActorRef = {
+      val instanceIds = 1.to(instances).map(_ => Instance.Id.forRunSpec(appToLaunch.id))
+      createLauncherRef(instanceIds, appToLaunch)
     }
 
     def verifyClean(): Unit = {
@@ -95,7 +105,7 @@ class TaskLauncherActorTest extends AkkaUnitTest {
     "Initial population of task list from instanceTracker with one task" in new Fixture {
       Mockito.when(instanceTracker.instancesBySpecSync).thenReturn(InstanceTracker.InstancesBySpec.forInstances(f.marathonInstance))
 
-      val launcherRef = createLauncherRef(instances = 0)
+      val launcherRef = createLauncherRef(instances = 1)
       launcherRef ! RateLimiterActor.DelayUpdate(f.app, clock.now())
 
       val counts = (launcherRef ? TaskLauncherActor.GetCount).futureValue.asInstanceOf[QueuedInstanceInfo]
@@ -194,7 +204,7 @@ class TaskLauncherActorTest extends AkkaUnitTest {
       assert(counts.instancesLeftToLaunch == 0)
 
       Mockito.verify(instanceTracker).instancesBySpecSync
-      val matchRequest = InstanceOpFactory.Request(f.app, offer, Map.empty, additionalLaunches = 1)
+      val matchRequest = InstanceOpFactory.Request(f.app, offer, Map.empty, instanceIds = Vector(Instance.Id.forRunSpec(f.app.id)))
       Mockito.verify(instanceOpFactory).matchOfferRequest(matchRequest)
       verifyClean()
     }
@@ -284,7 +294,7 @@ class TaskLauncherActorTest extends AkkaUnitTest {
       assert(counts.instancesLeftToLaunch == 1)
 
       Mockito.verify(instanceTracker).instancesBySpecSync
-      val matchRequest = InstanceOpFactory.Request(f.app, offer, Map.empty, additionalLaunches = 1)
+      val matchRequest = InstanceOpFactory.Request(f.app, offer, Map.empty, instanceIds = Vector.empty)
       Mockito.verify(instanceOpFactory).matchOfferRequest(matchRequest)
       verifyClean()
     }
@@ -301,7 +311,7 @@ class TaskLauncherActorTest extends AkkaUnitTest {
           offerMatcherManager, clock, instanceOpFactory,
           maybeOfferReviver = None,
           instanceTracker, rateLimiterActor.ref, offerMatchStatisticsActor.ref,
-          f.app, instancesToLaunch = 1,
+          f.app, instancesToLaunch = mutable.Map.empty,
           localRegion
         ) {
           override protected def scheduleTaskOperationTimeout(
@@ -328,7 +338,7 @@ class TaskLauncherActorTest extends AkkaUnitTest {
       assert(scheduleCalled)
 
       Mockito.verify(instanceTracker).instancesBySpecSync
-      val matchRequest = InstanceOpFactory.Request(f.app, offer, Map.empty, additionalLaunches = 1)
+      val matchRequest = InstanceOpFactory.Request(f.app, offer, Map.empty, instanceIds = Vector.empty)
       Mockito.verify(instanceOpFactory).matchOfferRequest(matchRequest)
       verifyClean()
     }
@@ -354,7 +364,7 @@ class TaskLauncherActorTest extends AkkaUnitTest {
       assert(counts.instancesLeftToLaunch == 0)
 
       Mockito.verify(instanceTracker).instancesBySpecSync
-      val matchRequest = InstanceOpFactory.Request(f.app, offer, Map.empty, additionalLaunches = 1)
+      val matchRequest = InstanceOpFactory.Request(f.app, offer, Map.empty, instanceIds = Vector.empty)
       Mockito.verify(instanceOpFactory).matchOfferRequest(matchRequest)
       verifyClean()
     }

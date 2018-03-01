@@ -5,12 +5,15 @@ import java.time.Clock
 
 import akka.actor.{ ActorRef, Props }
 import mesosphere.marathon.core.flow.OfferReviver
+import mesosphere.marathon.core.instance.Instance
 import mesosphere.marathon.core.launcher.InstanceOpFactory
 import mesosphere.marathon.core.launchqueue.impl._
 import mesosphere.marathon.core.leadership.LeadershipModule
 import mesosphere.marathon.core.matcher.manager.OfferMatcherManager
 import mesosphere.marathon.core.task.tracker.InstanceTracker
 import mesosphere.marathon.state.{ Region, RunSpec }
+
+import scala.collection.mutable
 
 /**
   * Provides a [[LaunchQueue]] implementation which can be used to launch tasks for a given RunSpec.
@@ -30,7 +33,11 @@ class LaunchQueueModule(
   }
 
   private[this] val launchQueueActor: ActorRef = {
-    def runSpecActorProps(runSpec: RunSpec, count: Int): Props =
+    def runSpecActorProps(runSpec: RunSpec, initialCount: Int): Props = {
+      val initialInstances: mutable.Map[Instance.Id, InstanceToLaunch] = mutable.Map.empty
+      1.to(initialCount).foreach { _ =>
+        initialInstances += Instance.Id.forRunSpec(runSpec.id) -> InstanceToLaunch(runSpec)
+      }
       TaskLauncherActor.props(
         config,
         subOfferMatcherManager,
@@ -40,7 +47,9 @@ class LaunchQueueModule(
         taskTracker,
         rateLimiterActor,
         offerMatchStatisticsActor,
-        localRegion)(runSpec, count)
+        localRegion)(runSpec, initialInstances)
+    }
+
     val props = LaunchQueueActor.props(config, offerMatchStatisticsActor, runSpecActorProps)
     leadershipModule.startWhenLeader(props, "launchQueue")
   }

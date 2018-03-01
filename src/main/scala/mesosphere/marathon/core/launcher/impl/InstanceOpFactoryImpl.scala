@@ -78,7 +78,7 @@ class InstanceOpFactoryImpl(
 
     matchedOffer match {
       case matches: ResourceMatchResponse.Match =>
-        val instanceId = Instance.Id.forRunSpec(pod.id)
+        val instanceId = request.instanceIds.head
         val taskIds = pod.containers.map { container =>
           Task.Id.forInstanceId(instanceId, Some(container))
         }
@@ -96,14 +96,14 @@ class InstanceOpFactoryImpl(
   }
 
   private[this] def inferNormalTaskOp(app: AppDefinition, request: InstanceOpFactory.Request): OfferMatchResult = {
-    val InstanceOpFactory.Request(runSpec, offer, instances, _, localRegion) = request
+    val InstanceOpFactory.Request(runSpec, offer, instances, instanceIds, localRegion) = request
 
     val matchResponse =
       RunSpecOfferMatcher.matchOffer(app, offer, instances.values.toIndexedSeq,
         config.defaultAcceptedResourceRolesSet, config, schedulerPlugins, localRegion)
     matchResponse match {
       case matches: ResourceMatchResponse.Match =>
-        val taskId = Task.Id.forRunSpec(app.id)
+        val taskId = Task.Id.forInstanceId(instanceIds.head, None)
         val taskBuilder = new TaskBuilder(app, taskId, config, runSpecTaskProc)
         val (taskInfo, networkInfo) = taskBuilder.build(request.offer, matches.resourceMatch, None)
         val task = Task(
@@ -125,10 +125,10 @@ class InstanceOpFactoryImpl(
   }
 
   private[this] def inferForResidents(spec: RunSpec, request: InstanceOpFactory.Request): OfferMatchResult = {
-    val InstanceOpFactory.Request(runSpec, offer, instances, additionalLaunches, localRegion) = request
+    val InstanceOpFactory.Request(runSpec, offer, instances, instanceIds, localRegion) = request
 
-    val needToLaunch = additionalLaunches > 0 && request.hasWaitingReservations
-    val needToReserve = request.numberOfWaitingReservations < additionalLaunches
+    val needToLaunch = instanceIds.size > 0 && request.hasWaitingReservations
+    val needToReserve = request.numberOfWaitingReservations < instanceIds.size
 
     /* *
      * If an offer HAS reservations/volumes that match our run spec, handling these has precedence
@@ -197,7 +197,7 @@ class InstanceOpFactoryImpl(
           ResourceSelector.reservable, config, schedulerPlugins, localRegion)
       resourceMatchResponse match {
         case matches: ResourceMatchResponse.Match =>
-          val instanceOp = reserveAndCreateVolumes(request.frameworkId, runSpec, offer, matches.resourceMatch)
+          val instanceOp = reserveAndCreateVolumes(request, runSpec, offer, matches.resourceMatch)
           Some(OfferMatchResult.Match(spec, request.offer, instanceOp, clock.now()))
         case matchesNot: ResourceMatchResponse.NoMatch =>
           Some(OfferMatchResult.NoMatch(spec, request.offer, matchesNot.reasons, clock.now()))
@@ -311,11 +311,12 @@ class InstanceOpFactoryImpl(
   }
 
   private[this] def reserveAndCreateVolumes(
-    frameworkId: FrameworkId,
+    request: InstanceOpFactory.Request,
     runSpec: RunSpec,
     offer: Mesos.Offer,
     resourceMatch: ResourceMatcher.ResourceMatch): InstanceOp = {
 
+    val frameworkId: FrameworkId = request.frameworkId
     val localVolumes: Seq[InstanceOpFactory.OfferedVolume] =
       resourceMatch.localVolumes.map {
         case DiskResourceMatch.ConsumedVolume(providerId, source, VolumeWithMount(volume, mount)) =>
@@ -342,7 +343,7 @@ class InstanceOpFactoryImpl(
         // will be replaced with a new task once we launch on an existing reservation this way, the reservation will be
         // labeled with a taskId that does not relate to a task existing in Mesos (previously, Marathon reused taskIds so
         // there was always a 1:1 correlation from reservation to taskId)
-        val taskId = Task.Id.forRunSpec(runSpec.id)
+        val taskId = Task.Id.forInstanceId(request.instanceIds.head, None)
         val reservationLabels = TaskLabels.labelsForTask(frameworkId, taskId)
         val task = Task(
           taskId = taskId,
@@ -372,7 +373,7 @@ class InstanceOpFactoryImpl(
         (reservationLabels, stateOp)
 
       case pod: PodDefinition =>
-        val instanceId = Instance.Id.forRunSpec(runSpec.id)
+        val instanceId = request.instanceIds.head
         val taskIds = pod.containers.map { container =>
           Task.Id.forInstanceId(instanceId, Some(container))
         }
