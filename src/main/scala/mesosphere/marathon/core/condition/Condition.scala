@@ -41,6 +41,11 @@ sealed trait Condition extends Product with Serializable {
     case _: Condition.Active => true
     case _ => false
   }
+
+  def isScheduled: Boolean = this match {
+    case Condition.Scheduled => true
+    case _ => false
+  }
 }
 
 object Condition {

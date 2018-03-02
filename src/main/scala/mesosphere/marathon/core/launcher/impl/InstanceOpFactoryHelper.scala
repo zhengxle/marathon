@@ -6,6 +6,7 @@ import mesosphere.marathon.core.instance.update.InstanceUpdateOperation
 import mesosphere.marathon.core.launcher.{ InstanceOp, InstanceOpFactory }
 import mesosphere.marathon.core.matcher.base.util.OfferOperationFactory
 import mesosphere.marathon.core.task.Task
+import mesosphere.marathon.state.RunSpec
 import org.apache.mesos.{ Protos => Mesos }
 
 class InstanceOpFactoryHelper(
@@ -17,20 +18,22 @@ class InstanceOpFactoryHelper(
   def launchEphemeral(
     taskInfo: Mesos.TaskInfo,
     newTask: Task,
-    instance: Instance): InstanceOp.LaunchTask = {
+    instance: Instance,
+    runSpec: RunSpec): InstanceOp.LaunchTask = {
 
     assume(newTask.taskId.mesosTaskId == taskInfo.getTaskId, "marathon task id and mesos task id must be equal")
 
     def createOperations = Seq(offerOperationFactory.launch(taskInfo))
 
     val stateOp = InstanceUpdateOperation.LaunchEphemeral(instance)
-    InstanceOp.LaunchTask(taskInfo, stateOp, oldInstance = None, createOperations)
+    InstanceOp.LaunchTask(taskInfo, stateOp, oldInstance = None, createOperations, runSpec)
   }
 
   def launchEphemeral(
     executorInfo: Mesos.ExecutorInfo,
     groupInfo: Mesos.TaskGroupInfo,
-    launched: Instance.LaunchRequest): InstanceOp.LaunchTaskGroup = {
+    launched: Instance.LaunchRequest,
+    runSpec: RunSpec): InstanceOp.LaunchTaskGroup = {
 
     assume(
       executorInfo.getExecutorId.getValue == launched.instance.instanceId.executorIdString,
@@ -39,13 +42,14 @@ class InstanceOpFactoryHelper(
     def createOperations = Seq(offerOperationFactory.launch(executorInfo, groupInfo))
 
     val stateOp = InstanceUpdateOperation.LaunchEphemeral(launched.instance)
-    InstanceOp.LaunchTaskGroup(executorInfo, groupInfo, stateOp, oldInstance = None, createOperations)
+    InstanceOp.LaunchTaskGroup(executorInfo, groupInfo, stateOp, oldInstance = None, createOperations, runSpec)
   }
 
   def launchOnReservation(
     taskInfo: Mesos.TaskInfo,
     newState: InstanceUpdateOperation.LaunchOnReservation,
-    oldState: Instance): InstanceOp.LaunchTask = {
+    oldState: Instance,
+    runSpec: RunSpec): InstanceOp.LaunchTask = {
 
     assume(
       oldState.isReserved,
@@ -53,18 +57,19 @@ class InstanceOpFactoryHelper(
 
     def createOperations = Seq(offerOperationFactory.launch(taskInfo))
 
-    InstanceOp.LaunchTask(taskInfo, newState, Some(oldState), createOperations)
+    InstanceOp.LaunchTask(taskInfo, newState, Some(oldState), createOperations, runSpec)
   }
 
   def launchOnReservation(
     executorInfo: Mesos.ExecutorInfo,
     groupInfo: Mesos.TaskGroupInfo,
     newState: InstanceUpdateOperation.LaunchOnReservation,
-    oldState: Instance): InstanceOp.LaunchTaskGroup = {
+    oldState: Instance,
+    runSpec: RunSpec): InstanceOp.LaunchTaskGroup = {
 
     def createOperations = Seq(offerOperationFactory.launch(executorInfo, groupInfo))
 
-    InstanceOp.LaunchTaskGroup(executorInfo, groupInfo, newState, Some(oldState), createOperations)
+    InstanceOp.LaunchTaskGroup(executorInfo, groupInfo, newState, Some(oldState), createOperations, runSpec)
   }
 
   /**

@@ -5,7 +5,7 @@ import mesosphere.marathon.core.condition.Condition
 import mesosphere.marathon.core.instance.Instance
 import mesosphere.marathon.core.instance.Instance.AgentInfo
 import mesosphere.marathon.core.task.{ Task, TaskCondition }
-import mesosphere.marathon.state.Timestamp
+import mesosphere.marathon.state.{ RunSpec, Timestamp }
 import org.apache.mesos
 
 import scala.collection.immutable.Seq
@@ -20,6 +20,12 @@ sealed trait InstanceUpdateOperation {
 }
 
 object InstanceUpdateOperation {
+
+  case class Schedule(instance: Instance.Id, runSpec: RunSpec) extends InstanceUpdateOperation {
+    override def instanceId: Instance.Id = instanceId
+    override def possibleNewState: Option[Instance] = None
+  }
+
   /** Launch (aka create) an ephemeral task*/
   case class LaunchEphemeral(instance: Instance) extends InstanceUpdateOperation {
     override def instanceId: Instance.Id = instance.instanceId

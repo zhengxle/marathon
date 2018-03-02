@@ -88,7 +88,7 @@ class InstanceOpFactoryImpl(
         val agentInfo = Instance.AgentInfo(request.offer)
         val taskIDs: Seq[Task.Id] = groupInfo.getTasksList.map { t => Task.Id(t.getTaskId) }(collection.breakOut)
         val instance = ephemeralPodInstance(pod, agentInfo, taskIDs, hostPorts, instanceId)
-        val instanceOp = taskOperationFactory.launchEphemeral(executorInfo, groupInfo, Instance.LaunchRequest(instance))
+        val instanceOp = taskOperationFactory.launchEphemeral(executorInfo, groupInfo, Instance.LaunchRequest(instance), pod)
         OfferMatchResult.Match(pod, request.offer, instanceOp, clock.now())
       case matchesNot: ResourceMatchResponse.NoMatch =>
         OfferMatchResult.NoMatch(pod, request.offer, matchesNot.reasons, clock.now())
@@ -118,7 +118,7 @@ class InstanceOpFactoryImpl(
 
         val agentInfo = AgentInfo(offer)
         val instance = LegacyAppInstance(task, agentInfo, app.unreachableStrategy)
-        val instanceOp = taskOperationFactory.launchEphemeral(taskInfo, task, instance)
+        val instanceOp = taskOperationFactory.launchEphemeral(taskInfo, task, instance, app)
         OfferMatchResult.Match(app, request.offer, instanceOp, clock.now())
       case matchesNot: ResourceMatchResponse.NoMatch => OfferMatchResult.NoMatch(app, request.offer, matchesNot.reasons, clock.now())
     }
@@ -128,7 +128,7 @@ class InstanceOpFactoryImpl(
     val InstanceOpFactory.Request(runSpec, offer, instances, instanceId, localRegion) = request
 
     val needToLaunch = request.hasWaitingReservations
-    val needToReserve = false//request.numberOfWaitingReservations < instanceIds.size
+    val needToReserve = false //request.numberOfWaitingReservations < instanceIds.size
 
     /* *
      * If an offer HAS reservations/volumes that match our run spec, handling these has precedence
@@ -258,7 +258,7 @@ class InstanceOpFactoryImpl(
           Map(newTaskId -> networkInfo.hostPorts),
           agentInfo)
 
-        taskOperationFactory.launchOnReservation(taskInfo, stateOp, reservedInstance)
+        taskOperationFactory.launchOnReservation(taskInfo, stateOp, reservedInstance, app)
 
       case pod: PodDefinition =>
         val builderConfig = TaskGroupBuilder.BuilderConfig(
@@ -306,7 +306,7 @@ class InstanceOpFactoryImpl(
           agentInfo = agentInfo
         )
 
-        taskOperationFactory.launchOnReservation(executorInfo, groupInfo, stateOp, reservedInstance)
+        taskOperationFactory.launchOnReservation(executorInfo, groupInfo, stateOp, reservedInstance, pod)
     }
   }
 

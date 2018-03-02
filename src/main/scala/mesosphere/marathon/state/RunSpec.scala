@@ -24,6 +24,10 @@ case class BackoffStrategy(
     maxLaunchDelay: FiniteDuration = 1.hour,
     factor: Double = 1.15)
 
+object RunSpec {
+  type Version = Timestamp
+}
+
 /**
   * A generic spec that specifies something that Marathon is able to launch instances of.
   */
@@ -32,6 +36,7 @@ case class BackoffStrategy(
 // don't make sense to do generically, eg 'executor', 'cmd', 'args', etc.
 // we should try to group things up logically - pod does a decent job of this
 trait RunSpec extends plugin.RunSpec {
+
   val id: PathId
   val env: Map[String, EnvVarValue]
   val labels: Map[String, String]
@@ -39,7 +44,7 @@ trait RunSpec extends plugin.RunSpec {
   val secrets: Map[String, Secret]
   val instances: Int
   val constraints: Set[Constraint]
-  val version: Timestamp
+  val version: RunSpec.Version
   val resources: Resources
   val backoffStrategy: BackoffStrategy
   val upgradeStrategy: UpgradeStrategy

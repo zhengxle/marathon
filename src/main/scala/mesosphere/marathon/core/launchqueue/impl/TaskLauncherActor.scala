@@ -7,9 +7,10 @@ import akka.Done
 import akka.actor._
 import akka.event.LoggingReceive
 import com.typesafe.scalalogging.StrictLogging
+import mesosphere.marathon.core.condition.Condition
 import mesosphere.marathon.core.flow.OfferReviver
 import mesosphere.marathon.core.instance.Instance
-import mesosphere.marathon.core.instance.update.{ InstanceChange, InstanceDeleted, InstanceUpdated }
+import mesosphere.marathon.core.instance.update.{ InstanceChange, InstanceDeleted, InstanceUpdateOperation, InstanceUpdated }
 import mesosphere.marathon.core.launcher.{ InstanceOp, InstanceOpFactory, OfferMatchResult }
 import mesosphere.marathon.core.launchqueue.LaunchQueue.QueuedInstanceInfo
 import mesosphere.marathon.core.launchqueue.LaunchQueueConfig
@@ -19,7 +20,7 @@ import mesosphere.marathon.core.matcher.base.OfferMatcher.{ InstanceOpWithSource
 import mesosphere.marathon.core.matcher.base.util.{ ActorOfferMatcher, InstanceOpSourceDelegate }
 import mesosphere.marathon.core.matcher.manager.OfferMatcherManager
 import mesosphere.marathon.core.task.Task
-import mesosphere.marathon.core.task.tracker.InstanceTracker
+import mesosphere.marathon.core.task.tracker.{ InstanceStateOpProcessor, InstanceTracker }
 import mesosphere.marathon.state.{ PathId, Region, RunSpec, Timestamp }
 import mesosphere.marathon.stream.Implicits._
 import org.apache.mesos.{ Protos => Mesos }
@@ -28,7 +29,7 @@ import scala.collection.mutable
 import scala.concurrent.Promise
 import scala.concurrent.duration._
 
-case class InstanceToLaunch(runSpec: RunSpec, launching: Boolean = false)
+case class InstanceToLaunch(runSpec: RunSpec, condition: Condition = Condition.Scheduled)
 
 private[launchqueue] object TaskLauncherActor {
   def props(
@@ -87,10 +88,11 @@ private class TaskLauncherActor(
     instanceOpFactory: InstanceOpFactory,
     maybeOfferReviver: Option[OfferReviver],
     instanceTracker: InstanceTracker,
+    //    stateOpProcessor: InstanceStateOpProcessor,
     rateLimiterActor: ActorRef,
     offerMatchStatisticsActor: ActorRef,
     val runSpecId: PathId,
-    private[this] val instancesToLaunch: mutable.Map[Instance.Id, InstanceToLaunch] = mutable.Map.empty, // TODO: Track instances as Condition.Scheduled
+    private[this] val instancesToLaunch: mutable.Map[Instance.Id, InstanceToLaunch] = mutable.Map.empty, // TODO: These should be saved in the instance tracker as scheduled
     localRegion: () => Option[Region]) extends Actor with StrictLogging with Stash {
   // scalastyle:on parameter.number
 
@@ -111,6 +113,13 @@ private class TaskLauncherActor(
     super.preStart()
 
     logger.info(s"Started instanceLaunchActor for ${runSpecId} with initial $instancesToLaunch")
+
+    // TODO: We want to save scheudled instances in the instance tracker instead of the task launcher.
+    // Create Scheduled instances
+    //    instancesToLaunch.iterator.foreach { case (instanceId, InstanceToLaunch(runSpec, _)) =>
+    //      val scheduleOp = InstanceUpdateOperation.Schedule(instanceId, runSpec)
+    //      stateOpProcessor.process(scheduleOp)
+    //    }
 
     instanceMap = instanceTracker.instancesBySpecSync.instancesMap(runSpecId).instanceMap
     rateLimiterActor ! RateLimiterActor.GetDelay(instancesToLaunch.values.map(_.runSpec).head)
@@ -214,8 +223,8 @@ private class TaskLauncherActor(
 
       op match {
         // only increment for launch ops, not for reservations:
-        case _: InstanceOp.LaunchTask => instancesToLaunch += Instance.Id.forRunSpec(runSpecId) -> InstanceToLaunch(op)
-        case _: InstanceOp.LaunchTaskGroup => instancesToLaunch += Instance.Id.forRunSpec(runSpecId) -> InstanceToLaunch(runSpec)
+        case InstanceOp.LaunchTask(_, _, _, _, runSpec) => instancesToLaunch += Instance.Id.forRunSpec(runSpecId) -> InstanceToLaunch(runSpec)
+        case InstanceOp.LaunchTaskGroup(_, _, _, _, _, runSpec) => instancesToLaunch += Instance.Id.forRunSpec(runSpecId) -> InstanceToLaunch(runSpec)
         //case _: InstanceOp.LaunchTask => instancesToLaunch += op.instanceId -> InstanceToLaunch(runSpec)
         //case _: InstanceOp.LaunchTaskGroup => instancesToLaunch += op.instanceId -> InstanceToLaunch(runSpec)
         case _ => ()
@@ -248,13 +257,15 @@ private class TaskLauncherActor(
         case update: InstanceDeleted =>
           logger.info(s"receiveInstanceUpdate: ${update.id} was deleted (${update.condition})")
           removeInstance(update.id)
+          val toLaunch = instancesToLaunch(update.id)
+          instancesToLaunch -= update.id
           // A) If the app has constraints, we need to reconsider offers that
           // we already rejected. E.g. when a host:unique constraint prevented
           // us to launch tasks on a particular node before, we need to reconsider offers
           // of that node after a task on that node has died.
           //
           // B) If a reservation timed out, already rejected offers might become eligible for creating new reservations.
-          if (runSpec.constraints.nonEmpty || (runSpec.isResident && shouldLaunchInstances)) {
+          if (toLaunch.runSpec.constraints.nonEmpty || (toLaunch.runSpec.isResident && shouldLaunchInstances)) {
             maybeOfferReviver.foreach(_.reviveOffers())
           }
       }
@@ -300,7 +311,7 @@ private class TaskLauncherActor(
 
     // get new back off delay, don't do anything until we get that.
     backOffUntil = None
-    rateLimiterActor ! RateLimiterActor.GetDelay(runSpec)
+    rateLimiterActor ! RateLimiterActor.GetDelay(instancesToLaunch.head._2.runSpec)
     context.become(waitForInitialDelay)
   }
 
@@ -309,7 +320,7 @@ private class TaskLauncherActor(
     val instancesLaunchesInFlight = inFlightInstanceOperations.keys
       .count(instanceId => instanceMap.get(instanceId).exists(instance => instance.isLaunched || instance.isReserved))
     sender() ! QueuedInstanceInfo(
-      runSpec,
+      instancesToLaunch.head._2.runSpec,
       inProgress = instancesToLaunch.size > 0 || inFlightInstanceOperations.nonEmpty,
       instancesLeftToLaunch = instancesToLaunch.size,
       finalInstanceCount = instancesToLaunch.size + instancesLaunchesInFlight + instancesLaunched,
@@ -327,7 +338,7 @@ private class TaskLauncherActor(
       logger.debug(s"Matching offer ${offer.getId} and need to launch $instancesToLaunch tasks.")
       val reachableInstances = instanceMap.filterNotAs{ case (_, instance) => instance.state.condition.isLost }
 
-      val (instanceId, runSpec) = instancesToLaunch.collectFirst { case (id, InstanceToLaunch(spec, launching)) if !launching => (id, spec) }.get
+      val (instanceId, runSpec) = instancesToLaunch.collectFirst { case (id, InstanceToLaunch(spec, condition)) if condition.isScheduled => (id, spec) }.get
       val matchRequest = InstanceOpFactory.Request(runSpec, offer, reachableInstances, instanceId, localRegion())
       instanceOpFactory.matchOfferRequest(matchRequest) match {
         case matched: OfferMatchResult.Match =>
@@ -354,11 +365,14 @@ private class TaskLauncherActor(
       val instanceId = instanceOp.instanceId
       instanceOp match {
         // only decrement for launched instances, not for reservations:
-        case task: InstanceOp.LaunchTask => instancesToLaunch. -= Task.Id.instanceId(task.taskInfo.getTaskId().getValue())
+        case task: InstanceOp.LaunchTask =>
+          // Update instance ID
+          val toLaunch = instancesToLaunch(instanceId)
+          instancesToLaunch += instanceId -> toLaunch.copy(condition = Condition.Created)
         case tasks: InstanceOp.LaunchTaskGroup =>
-          tasks.groupInfo.getTasksList().toList.foreach{ info =>
-            instancesToLaunch -= Task.Id.instanceId(info.getTaskId().getValue())
-          }
+          // Update instance ID
+          val toLaunch = instancesToLaunch(instanceId)
+          instancesToLaunch += instanceId -> toLaunch.copy(condition = Condition.Created)
         case _ => ()
       }
 
@@ -389,6 +403,8 @@ private class TaskLauncherActor(
     }
 
     updateActorState()
+
+    val runSpec = instancesToLaunch(instanceOp.instanceId).runSpec
 
     logger.debug(s"Request ${instanceOp.getClass.getSimpleName} for instance '${instanceOp.instanceId.idString}', version '${runSpec.version}'. $status")
     promise.trySuccess(MatchedInstanceOps(offer.getId, Seq(InstanceOpWithSource(myselfAsLaunchSource, instanceOp))))
@@ -423,15 +439,19 @@ private class TaskLauncherActor(
 
     val inFlight = inFlightInstanceOperations.size
     val launchedOrRunning = instanceMap.values.count(_.isLaunched) - inFlight
-    val matchInstanceStr = s"${instancesToLaunch.size} instancesToLaunch, $inFlight in flight, " +
-      s"$launchedOrRunning confirmed. $matchInstanceStr $backoffStr"
+    val matchInstanceStr = s"${instancesToLaunch.size} instancesToLaunch, $inFlight in flight, "
+
+    s"$launchedOrRunning confirmed. $matchInstanceStr $backoffStr"
   }
 
   /** Manage registering this actor as offer matcher. Only register it if instancesToLaunch > 0. */
   private[this] object OfferMatcherRegistration {
     private[this] val myselfAsOfferMatcher: OfferMatcher = {
       //set the precedence only, if this app is resident
-      new ActorOfferMatcher(self, if (runSpec.isResident) Some(runSpec.id) else None)
+      val maybeResidentRunSpec = instancesToLaunch.collectFirst {
+        case (_, InstanceToLaunch(runSpec, condition)) if condition.isScheduled => runSpec
+      }
+      new ActorOfferMatcher(self, maybeResidentRunSpec.map(_.id))
     }
     private[this] var registeredAsMatcher = false
 

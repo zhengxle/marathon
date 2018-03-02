@@ -3,6 +3,7 @@ package core.launcher
 
 import mesosphere.marathon.core.instance.Instance
 import mesosphere.marathon.core.instance.update.InstanceUpdateOperation
+import mesosphere.marathon.state.RunSpec
 import mesosphere.marathon.stream.Implicits._
 import mesosphere.marathon.tasks.ResourceUtil
 import mesosphere.marathon.tasks.ResourceUtil.RichResource
@@ -31,7 +32,8 @@ object InstanceOp {
       taskInfo: MesosProtos.TaskInfo,
       stateOp: InstanceUpdateOperation,
       oldInstance: Option[Instance] = None,
-      offerOperations: Seq[MesosProtos.Offer.Operation]) extends InstanceOp {
+      offerOperations: Seq[MesosProtos.Offer.Operation],
+      runSpec: RunSpec) extends InstanceOp {
 
     def applyToOffer(offer: MesosProtos.Offer): MesosProtos.Offer = {
       ResourceUtil.consumeResourcesFromOffer(offer, taskInfo.getResourcesList.toSeq)
@@ -43,7 +45,8 @@ object InstanceOp {
       groupInfo: MesosProtos.TaskGroupInfo,
       stateOp: InstanceUpdateOperation,
       oldInstance: Option[Instance] = None,
-      offerOperations: Seq[MesosProtos.Offer.Operation]) extends InstanceOp {
+      offerOperations: Seq[MesosProtos.Offer.Operation],
+      runSpec: RunSpec) extends InstanceOp {
 
     override def applyToOffer(offer: MesosProtos.Offer): MesosProtos.Offer = {
       val taskResources: Seq[MesosProtos.Resource] =
