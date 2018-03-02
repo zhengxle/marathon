@@ -47,7 +47,7 @@ class LaunchQueueModule(
         taskTracker,
         rateLimiterActor,
         offerMatchStatisticsActor,
-        localRegion)(runSpec, initialInstances)
+        localRegion)(runSpec.id, initialInstances)
     }
 
     val props = LaunchQueueActor.props(config, offerMatchStatisticsActor, runSpecActorProps)

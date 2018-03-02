@@ -52,7 +52,10 @@ object Condition {
   /** Reserved: Task with persistent volume has reservation, but is not launched yet */
   case object Reserved extends Condition
 
-  /** Created: Task is known in marathon and sent to mesos, but not staged yet */
+  /** Scheduled: Task is not created and is in the offer matching phase. */
+  case object Scheduled extends Condition
+
+  /** Created: Task is known in Marathon and sent to Mesos, but not staged yet */
   case object Created extends Active
 
   /** Error: indicates that a task launch attempt failed because of an error in the task specification */
