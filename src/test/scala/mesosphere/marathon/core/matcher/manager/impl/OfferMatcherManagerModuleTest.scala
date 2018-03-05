@@ -40,11 +40,12 @@ class OfferMatcherManagerModuleTest extends AkkaUnitTest with OfferMatcherSpec {
 
   object F {
     import org.apache.mesos.{ Protos => Mesos }
-    val runSpecId = PathId("/test")
+    val app = MarathonTestHelper.makeBasicApp().copy(id = PathId("/test"))
+    val runSpecId = app.id
     val instanceId = Instance.Id.forRunSpec(runSpecId)
     val launch = new InstanceOpFactoryHelper(
       Some("principal"),
-      Some("role")).launchEphemeral(_: Mesos.TaskInfo, _: Task, _: Instance)
+      Some("role")).launchEphemeral(_: Mesos.TaskInfo, _: Task, _: Instance, app)
   }
 
   class Fixture {

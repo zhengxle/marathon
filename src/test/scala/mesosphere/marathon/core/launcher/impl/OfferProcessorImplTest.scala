@@ -25,7 +25,8 @@ import scala.concurrent.duration._
 class OfferProcessorImplTest extends UnitTest {
   private[this] val offer = MarathonTestHelper.makeBasicOffer().build()
   private[this] val offerId = offer.getId
-  private val appId: PathId = PathId("/testapp")
+  val app = MarathonTestHelper.makeBasicApp().copy(id = PathId("/testapp"))
+  private val appId: PathId = app.id
   private[this] val instanceId1 = Instance.Id.forRunSpec(appId)
   private[this] val instanceId2 = Instance.Id.forRunSpec(appId)
   private[this] val taskInfo1 = MarathonTestHelper.makeOneCPUTask(Task.Id.forInstanceId(instanceId1, None)).build()
@@ -53,9 +54,9 @@ class OfferProcessorImplTest extends UnitTest {
   object f {
     import org.apache.mesos.{ Protos => Mesos }
     val launch = new InstanceOpFactoryHelper(Some("principal"), Some("role"))
-      .launchEphemeral(_: Mesos.TaskInfo, _: Task, _: Instance)
+      .launchEphemeral(_: Mesos.TaskInfo, _: Task, _: Instance, app)
     val launchWithNewTask = new InstanceOpFactoryHelper(Some("principal"), Some("role"))
-      .launchOnReservation(_: Mesos.TaskInfo, _: InstanceUpdateOperation.LaunchOnReservation, _: Instance)
+      .launchOnReservation(_: Mesos.TaskInfo, _: InstanceUpdateOperation.LaunchOnReservation, _: Instance, app)
   }
 
   class DummySource extends InstanceOpSource {

@@ -14,7 +14,8 @@ import org.apache.mesos.{ Protos => Mesos }
 class InstanceOpFactoryHelperTest extends UnitTest {
 
   class Fixture {
-    val runSpecId = PathId("/test")
+    val app = MarathonTestHelper.makeBasicApp().copy(id = PathId("/test"))
+    val runSpecId = app.id
     val helper = new InstanceOpFactoryHelper(Some("principal"), Some("role"))
   }
 
@@ -29,7 +30,7 @@ class InstanceOpFactoryHelperTest extends UnitTest {
 
       When("We create a launch operation")
       val error = intercept[AssertionError] {
-        f.helper.launchEphemeral(taskInfo, task, instance)
+        f.helper.launchEphemeral(taskInfo, task, instance, f.app)
       }
 
       Then("An exception is thrown")
@@ -45,7 +46,7 @@ class InstanceOpFactoryHelperTest extends UnitTest {
       val taskInfo = MarathonTestHelper.makeOneCPUTask(task.taskId).build()
 
       When("We create a launch operation")
-      val launch = f.helper.launchEphemeral(taskInfo, task, instance)
+      val launch = f.helper.launchEphemeral(taskInfo, task, instance, f.app)
 
       Then("The result is as expected")
       launch.stateOp shouldEqual InstanceUpdateOperation.LaunchEphemeral(instance)

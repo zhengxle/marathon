@@ -57,7 +57,7 @@ class TaskLauncherActorTest extends AkkaUnitTest {
     val marathonTask: Task = marathonInstance.appTask
     val instanceId = marathonInstance.instanceId
     val task = MarathonTestHelper.makeOneCPUTask(Task.Id.forInstanceId(instanceId, None)).build()
-    val opFactory = new InstanceOpFactoryHelper(Some("principal"), Some("role")).launchEphemeral(_: Mesos.TaskInfo, _: Task, _: Instance)
+    val opFactory = new InstanceOpFactoryHelper(Some("principal"), Some("role")).launchEphemeral(_: Mesos.TaskInfo, _: Task, _: Instance, app)
     val launch = opFactory(task, marathonTask, marathonInstance)
     val offer = MarathonTestHelper.makeBasicOffer().build()
     val noMatchResult = OfferMatchResult.NoMatch(app, offer, Seq.empty, Timestamp.now())
@@ -85,7 +85,7 @@ class TaskLauncherActorTest extends AkkaUnitTest {
         offerMatcherManager, clock, instanceOpFactory,
         maybeOfferReviver = Some(offerReviver),
         instanceTracker, rateLimiterActor.ref, offerMatchStatisticsActor.ref, localRegion) _
-      system.actorOf(props(appToLaunch, instancesToLaunch))
+      system.actorOf(props(appToLaunch.id, instancesToLaunch))
     }
 
     def createLauncherRef(instances: Int, appToLaunch: AppDefinition = f.app): ActorRef = {
@@ -204,7 +204,7 @@ class TaskLauncherActorTest extends AkkaUnitTest {
       assert(counts.instancesLeftToLaunch == 0)
 
       Mockito.verify(instanceTracker).instancesBySpecSync
-      val matchRequest = InstanceOpFactory.Request(f.app, offer, Map.empty, instanceIds = Vector(Instance.Id.forRunSpec(f.app.id)))
+      val matchRequest = InstanceOpFactory.Request(f.app, offer, Map.empty, Instance.Id.forRunSpec(f.app.id))
       Mockito.verify(instanceOpFactory).matchOfferRequest(matchRequest)
       verifyClean()
     }
@@ -294,7 +294,7 @@ class TaskLauncherActorTest extends AkkaUnitTest {
       assert(counts.instancesLeftToLaunch == 1)
 
       Mockito.verify(instanceTracker).instancesBySpecSync
-      val matchRequest = InstanceOpFactory.Request(f.app, offer, Map.empty, instanceIds = Vector.empty)
+      val matchRequest = InstanceOpFactory.Request(f.app, offer, Map.empty, Instance.Id.forRunSpec(f.app.id))
       Mockito.verify(instanceOpFactory).matchOfferRequest(matchRequest)
       verifyClean()
     }
@@ -311,7 +311,7 @@ class TaskLauncherActorTest extends AkkaUnitTest {
           offerMatcherManager, clock, instanceOpFactory,
           maybeOfferReviver = None,
           instanceTracker, rateLimiterActor.ref, offerMatchStatisticsActor.ref,
-          f.app, instancesToLaunch = mutable.Map.empty,
+          f.app.id, instancesToLaunch = mutable.Map.empty,
           localRegion
         ) {
           override protected def scheduleTaskOperationTimeout(
@@ -338,7 +338,7 @@ class TaskLauncherActorTest extends AkkaUnitTest {
       assert(scheduleCalled)
 
       Mockito.verify(instanceTracker).instancesBySpecSync
-      val matchRequest = InstanceOpFactory.Request(f.app, offer, Map.empty, instanceIds = Vector.empty)
+      val matchRequest = InstanceOpFactory.Request(f.app, offer, Map.empty, Instance.Id.forRunSpec(f.app.id))
       Mockito.verify(instanceOpFactory).matchOfferRequest(matchRequest)
       verifyClean()
     }
@@ -364,7 +364,7 @@ class TaskLauncherActorTest extends AkkaUnitTest {
       assert(counts.instancesLeftToLaunch == 0)
 
       Mockito.verify(instanceTracker).instancesBySpecSync
-      val matchRequest = InstanceOpFactory.Request(f.app, offer, Map.empty, instanceIds = Vector.empty)
+      val matchRequest = InstanceOpFactory.Request(f.app, offer, Map.empty, Instance.Id.forRunSpec(f.app.id))
       Mockito.verify(instanceOpFactory).matchOfferRequest(matchRequest)
       verifyClean()
     }

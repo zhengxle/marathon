@@ -170,7 +170,7 @@ class LaunchQueueModuleTest extends AkkaUnitTest with OfferMatcherSpec {
       val matchedTasks = matchFuture.futureValue
 
       Then("the offer gets passed to the task factory and respects the answer")
-      val request = InstanceOpFactory.Request(app, offer, Map.empty, instanceIds = Vector(f.instance.instanceId))
+      val request = InstanceOpFactory.Request(app, offer, Map.empty, f.instance.instanceId)
       verify(instanceOpFactory).matchOfferRequest(request)
       matchedTasks.offerId should equal(offer.getId)
       matchedTasks.opsWithSource should equal(Seq.empty)
@@ -196,7 +196,7 @@ class LaunchQueueModuleTest extends AkkaUnitTest with OfferMatcherSpec {
       val matchedTasks = matchFuture.futureValue
 
       Then("the offer gets passed to the task factory and respects the answer")
-      val request = InstanceOpFactory.Request(app, offer, Map.empty, instanceIds = Vector(f.instance.instanceId))
+      val request = InstanceOpFactory.Request(app, offer, Map.empty, f.instance.instanceId)
       verify(instanceOpFactory).matchOfferRequest(request)
       matchedTasks.offerId should equal(offer.getId)
       launchedTaskInfos(matchedTasks) should equal(Seq(mesosTask))
@@ -241,13 +241,13 @@ class LaunchQueueModuleTest extends AkkaUnitTest with OfferMatcherSpec {
     val app = MarathonTestHelper.makeBasicApp().copy(id = PathId("/app"))
 
     val offer = MarathonTestHelper.makeBasicOffer().build()
-    val runspecId = PathId("/test")
+    val runspecId = app.id
     val instance = TestInstanceBuilder.newBuilder(runspecId).addTaskWithBuilder().taskRunning().build().getInstance()
     val task: Task = instance.appTask
 
     val mesosTask = MarathonTestHelper.makeOneCPUTask(task.taskId).build()
     val launch = new InstanceOpFactoryHelper(Some("principal"), Some("role")).
-      launchEphemeral(mesosTask, task, instance)
+      launchEphemeral(mesosTask, task, instance, app)
     val instanceChange = TaskStatusUpdateTestHelper(
       operation = InstanceUpdateOperation.LaunchEphemeral(instance),
       effect = InstanceUpdateEffect.Update(instance = instance, oldState = None, events = Nil)).wrapped

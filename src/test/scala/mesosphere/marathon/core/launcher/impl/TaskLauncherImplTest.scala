@@ -22,13 +22,14 @@ import org.mockito.Mockito.when
 class TaskLauncherImplTest extends UnitTest {
   private[this] val offerId = OfferID("offerId")
   private[this] val offerIdAsJava: util.Collection[Protos.OfferID] = Collections.singleton[Protos.OfferID](offerId)
+  val app = MarathonTestHelper.makeBasicApp().copy(id = PathId("/test"))
   private[this] def launch(taskInfoBuilder: TaskInfo.Builder): InstanceOp.LaunchTask = {
     val taskInfo = taskInfoBuilder.build()
     val instance = TestInstanceBuilder.newBuilderWithInstanceId(instanceId).addTaskWithBuilder().taskFromTaskInfo(taskInfo).build().getInstance()
     val task: Task = instance.appTask
-    new InstanceOpFactoryHelper(Some("principal"), Some("role")).launchEphemeral(taskInfo, task, instance)
+    new InstanceOpFactoryHelper(Some("principal"), Some("role")).launchEphemeral(taskInfo, task, instance, app)
   }
-  private[this] val appId = PathId("/test")
+  private[this] val appId = app.id
   private[this] val instanceId = Instance.Id.forRunSpec(appId)
   private[this] val launch1 = launch(MarathonTestHelper.makeOneCPUTask(Task.Id.forInstanceId(instanceId, None)))
   private[this] val launch2 = launch(MarathonTestHelper.makeOneCPUTask(Task.Id.forInstanceId(instanceId, None)))
