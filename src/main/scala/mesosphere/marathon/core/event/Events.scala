@@ -270,3 +270,8 @@ case class MesosFrameworkMessageEvent(
     message: Array[Byte],
     eventType: String = "framework_message_event",
     timestamp: String = Timestamp.now().toString) extends MarathonEvent
+
+case class InstanceDecommissioningEvent(
+    instance: Instance,
+    eventType: String = "instance_decommissioning_event",
+    timestamp: String = Timestamp.now().toString) extends MarathonEvent

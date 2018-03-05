@@ -7,7 +7,9 @@ import mesosphere.marathon.core.instance.Instance
 import scala.collection.immutable.Seq
 
 /** The state change effect after applying a state change operation to the instance */
-sealed trait InstanceUpdateEffect extends Product with Serializable
+sealed trait InstanceUpdateEffect extends Product with Serializable {
+  lazy val name: String = getClass.getSimpleName
+}
 
 object InstanceUpdateEffect {
   /** The instance must be updated with the given state */

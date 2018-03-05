@@ -85,6 +85,9 @@ object InstanceUpdateOperation {
 
   case class ReservationTimeout(instanceId: Instance.Id) extends InstanceUpdateOperation
 
+  /** Decommission an instance i.e. kill the MesosTask if it exists and expunge the instance afterwards */
+  case class Decommission(instanceId: Instance.Id, now: Timestamp) extends InstanceUpdateOperation
+
   /** Expunge a task whose TaskOp was rejected */
   case class ForceExpunge(instanceId: Instance.Id) extends InstanceUpdateOperation
 }

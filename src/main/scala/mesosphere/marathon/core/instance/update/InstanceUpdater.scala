@@ -3,8 +3,10 @@ package core.instance.update
 
 import com.typesafe.scalalogging.StrictLogging
 import mesosphere.marathon.core.condition.Condition
+import mesosphere.marathon.core.event.InstanceDecommissioningEvent
+import mesosphere.marathon.core.instance.Instance.InstanceGoal
 import mesosphere.marathon.core.instance.{Instance, Reservation}
-import mesosphere.marathon.core.instance.update.InstanceUpdateOperation.{LaunchEphemeral, LaunchOnReservation, MesosUpdate, Reserve}
+import mesosphere.marathon.core.instance.update.InstanceUpdateOperation._
 import mesosphere.marathon.core.task.Task
 import mesosphere.marathon.core.task.update.TaskUpdateEffect
 import mesosphere.marathon.state.{Timestamp, UnreachableEnabled}
@@ -41,14 +43,18 @@ object InstanceUpdater extends StrictLogging {
         case TaskUpdateEffect.Update(updatedTask) =>
           val updated: Instance = updatedInstance(instance, updatedTask, now)
           val events = eventsGenerator.events(updated, Some(updatedTask), now, previousCondition = Some(instance.state.condition))
-          if (updated.tasksMap.values.forall(_.isTerminal)) {
+
+          // If the instance should be decommissioned and all tasks are terminal, we can expunge the instance
+          if (instance.goal == InstanceGoal.Decommissioned && updated.tasksMap.values.forall(_.isTerminal)) {
             // all task can be terminal only if the instance doesn't have any persistent volumes
-            logger.info("all tasks of {} are terminal, requesting to expunge", updated.instanceId)
+            logger.info("all tasks of {} are terminal, goal is decommissioned, requesting to expunge", updated.instanceId)
             InstanceUpdateEffect.Expunge(updated, events)
           } else {
             // If the updated task is Reserved, it means that the real task reached a Terminal state,
             // which in turn means that the task managed to get up and running, which means that
             // its persistent volume(s) had been created, and therefore they must never be destroyed/unreserved.
+            // TODO: The reservation state is likely redundant if the instance has a goalState Suspended
+            // Meaning that we can probably just do an update disregards the updatedTask condition
             if (updatedTask.status.condition == Condition.Reserved) {
               val suspendedState = Reservation.State.Suspended(timeout = None)
               val suspended = updated.copy(reservation = updated.reservation.map(_.copy(state = suspendedState)))
@@ -150,6 +156,15 @@ object InstanceUpdater extends StrictLogging {
     } else {
       InstanceUpdateEffect.Failure("ReservationTimeout can only be applied to a reserved instance")
     }
+  }
+
+  /**
+    * Set the instance goal to Decommissioned which will prevent it to be rescheduled.
+    * After all associated tasks are terminal, the instance will be expunged.
+    */
+  private[marathon] def decommission(instance: Instance): InstanceUpdateEffect = {
+    val updatedInstance = instance.copy(goal = InstanceGoal.Decommissioned)
+    InstanceUpdateEffect.Update(updatedInstance, oldState = Some(instance), Seq(InstanceDecommissioningEvent(instance)))
   }
 
   private[marathon] def forceExpunge(instance: Instance, now: Timestamp): InstanceUpdateEffect = {

@@ -46,6 +46,9 @@ private[marathon] class InstanceUpdateOpResolver(
       case op: Reserve =>
         createInstance(op.instanceId)(updater.reserve(op, clock.now()))
 
+      case op: Decommission =>
+        updateExistingInstance(op.instanceId)(updater.decommission(_))
+
       case op: ForceExpunge =>
         directInstanceTracker.instance(op.instanceId).map {
           case Some(existingInstance) =>

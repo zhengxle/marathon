@@ -367,6 +367,16 @@ trait EventFormats {
       "eventType" -> change.eventType
     )
   }
+  implicit lazy val InstanceStoppingEventWrites: Writes[InstanceDecommissioningEvent] = Writes { change =>
+    Json.obj(
+      "instanceId" -> change.instance.instanceId,
+      "runSpecId" -> change.instance.runSpecId,
+      "agentId" -> change.instance.agentInfo.agentId,
+      "host" -> change.instance.agentInfo.host,
+      "timestamp" -> change.timestamp,
+      "eventType" -> change.eventType
+    )
+  }
 
   def eventToJson(event: MarathonEvent, lightweightPlan: Boolean): JsValue = event match {
     case event: AppTerminatedEvent => Json.toJson(event)
@@ -391,6 +401,7 @@ trait EventFormats {
     case event: InstanceHealthChanged => Json.toJson(event)
     case event: UnknownInstanceTerminated => Json.toJson(event)
     case event: PodEvent => Json.toJson(event)
+    case event: InstanceDecommissioningEvent => Json.toJson(event)
 
     // Select lightweight plans if requested
     case event: DeploymentSuccess => Json.toJson(event)(
