@@ -114,13 +114,6 @@ private class TaskLauncherActor(
 
     logger.info(s"Started instanceLaunchActor for ${runSpecId} with initial $instancesToLaunch")
 
-    // TODO: We want to save scheudled instances in the instance tracker instead of the task launcher.
-    // Create Scheduled instances
-    //    instancesToLaunch.iterator.foreach { case (instanceId, InstanceToLaunch(runSpec, _)) =>
-    //      val scheduleOp = InstanceUpdateOperation.Schedule(instanceId, runSpec)
-    //      stateOpProcessor.process(scheduleOp)
-    //    }
-
     instanceMap = instanceTracker.instancesBySpecSync.instancesMap(runSpecId).instanceMap
     rateLimiterActor ! RateLimiterActor.GetDelay(instancesToLaunch.values.map(_.runSpec).head)
   }
@@ -320,7 +313,7 @@ private class TaskLauncherActor(
     val instancesLaunchesInFlight = inFlightInstanceOperations.keys
       .count(instanceId => instanceMap.get(instanceId).exists(instance => instance.isLaunched || instance.isReserved))
     sender() ! QueuedInstanceInfo(
-      instancesToLaunch.head._2.runSpec,
+      instancesToLaunch.headOption.map(_._2.runSpec),
       inProgress = instancesToLaunch.size > 0 || inFlightInstanceOperations.nonEmpty,
       instancesLeftToLaunch = instancesToLaunch.size,
       finalInstanceCount = instancesToLaunch.size + instancesLaunchesInFlight + instancesLaunched,
@@ -338,16 +331,21 @@ private class TaskLauncherActor(
       logger.debug(s"Matching offer ${offer.getId} and need to launch $instancesToLaunch tasks.")
       val reachableInstances = instanceMap.filterNotAs{ case (_, instance) => instance.state.condition.isLost }
 
-      val (instanceId, runSpec) = instancesToLaunch.collectFirst { case (id, InstanceToLaunch(spec, condition)) if condition.isScheduled => (id, spec) }.get
-      val matchRequest = InstanceOpFactory.Request(runSpec, offer, reachableInstances, instanceId, localRegion())
-      instanceOpFactory.matchOfferRequest(matchRequest) match {
-        case matched: OfferMatchResult.Match =>
-          logger.debug(s"Matched offer ${offer.getId} for run spec ${runSpec.id}, ${runSpec.version}.")
-          offerMatchStatisticsActor ! matched
-          handleInstanceOp(matched.instanceOp, offer, promise)
-        case notMatched: OfferMatchResult.NoMatch =>
-          logger.debug(s"Did not match offer ${offer.getId} for run spec ${runSpec.id}, ${runSpec.version}.")
-          offerMatchStatisticsActor ! notMatched
+      instancesToLaunch.collectFirst { case (id, InstanceToLaunch(spec, condition)) if condition.isScheduled => (id, spec) } match {
+        case Some((instanceId, runSpec)) =>
+          val matchRequest = InstanceOpFactory.Request(runSpec, offer, reachableInstances, instanceId, localRegion())
+          instanceOpFactory.matchOfferRequest(matchRequest) match {
+            case matched: OfferMatchResult.Match =>
+              logger.debug(s"Matched offer ${offer.getId} for run spec ${runSpec.id}, ${runSpec.version}.")
+              offerMatchStatisticsActor ! matched
+              handleInstanceOp(matched.instanceOp, offer, promise)
+            case notMatched: OfferMatchResult.NoMatch =>
+              logger.debug(s"Did not match offer ${offer.getId} for run spec ${runSpec.id}, ${runSpec.version}.")
+              offerMatchStatisticsActor ! notMatched
+              promise.trySuccess(MatchedInstanceOps.noMatch(offer.getId))
+          }
+        case None =>
+          logger.debug(s"No instance is scheduled.")
           promise.trySuccess(MatchedInstanceOps.noMatch(offer.getId))
       }
   }

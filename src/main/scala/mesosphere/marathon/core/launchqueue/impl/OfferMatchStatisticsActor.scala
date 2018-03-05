@@ -46,7 +46,7 @@ class OfferMatchStatisticsActor extends Actor {
         .groupBy(identity).map { case (id, reasons) => id -> reasons.size }
     }
     def withStatistics(queueInfo: QueuedInstanceInfo) = {
-      val runSpecId = queueInfo.runSpec.id
+      val runSpecId = queueInfo.runSpec.map(_.id).getOrElse(runSpecStatistics.head._1) // TODO: remove dirty hack
       val statistics = runSpecStatistics(runSpecId)
       val lastOffers = lastNoMatches.get(runSpecId).fold(emptyNoMatches)(_.values.toVector)
       QueuedInstanceInfoWithStatistics(

@@ -21,7 +21,7 @@ object LaunchQueue {
     * @param backOffUntil timestamp until which no further launch attempts will be made
     */
   case class QueuedInstanceInfo(
-      runSpec: RunSpec,
+      runSpec: Option[RunSpec],
       inProgress: Boolean,
       instancesLeftToLaunch: Int,
       finalInstanceCount: Int,
@@ -29,7 +29,7 @@ object LaunchQueue {
       startedAt: Timestamp)
 
   case class QueuedInstanceInfoWithStatistics(
-      runSpec: RunSpec,
+      runSpec: Option[RunSpec],
       inProgress: Boolean,
       instancesLeftToLaunch: Int,
       finalInstanceCount: Int,

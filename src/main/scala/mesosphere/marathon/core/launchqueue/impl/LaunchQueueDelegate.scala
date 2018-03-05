@@ -60,10 +60,10 @@ private[launchqueue] class LaunchQueueDelegate(
       case None => 0
     }(ExecutionContexts.global)
 
-  override def listRunSpecs: Seq[RunSpec] = list.map(_.runSpec)
+  override def listRunSpecs: Seq[RunSpec] = list.flatMap(_.runSpec)
 
   override def listRunSpecsAsync: Future[Seq[RunSpec]] =
-    listAsync.map(_.map(_.runSpec))(ExecutionContexts.global)
+    listAsync.map(_.flatMap(_.runSpec))(ExecutionContexts.global)
 
   override def asyncPurge(runSpecId: PathId): Future[Done] =
     askQueueActorFuture[LaunchQueueDelegate.Request, Done]("asyncPurge", timeout = purgeTimeout)(LaunchQueueDelegate.Purge(runSpecId))

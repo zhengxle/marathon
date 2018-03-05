@@ -26,7 +26,7 @@ class QueueResource @Inject() (
   @Produces(Array(MarathonMediaType.PREFERRED_APPLICATION_JSON))
   def index(@Context req: HttpServletRequest, @QueryParam("embed") embed: java.util.Set[String]): Response = authenticated(req) { implicit identity =>
     val embedLastUnusedOffers = embed.contains(QueueResource.EmbedLastUnusedOffers)
-    val infos = launchQueue.listWithStatistics.filter(t => t.inProgress && isAuthorized(ViewRunSpec, t.runSpec))
+    val infos = launchQueue.listWithStatistics.filter(t => t.runSpec.isDefined).filter(t => t.inProgress && isAuthorized(ViewRunSpec, t.runSpec.get))
     ok(Raml.toRaml((infos, embedLastUnusedOffers, clock)))
   }
 
@@ -36,7 +36,7 @@ class QueueResource @Inject() (
     @PathParam("appId") id: String,
     @Context req: HttpServletRequest): Response = authenticated(req) { implicit identity =>
     val appId = id.toRootPath
-    val maybeApp = launchQueue.list.find(_.runSpec.id == appId).map(_.runSpec)
+    val maybeApp = launchQueue.list.find(_.runSpec.map(_.id).contains(appId)).flatMap(_.runSpec)
     withAuthorization(UpdateRunSpec, maybeApp, notFound(s"Application $appId not found in tasks queue.")) { app =>
       launchQueue.resetDelay(app)
       noContent

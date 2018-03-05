@@ -400,29 +400,29 @@ class AppDeployIntegrationTest extends AkkaIntegrationTest with EmbeddedMarathon
       appResult.value.app.healthChecks
     }
 
-    "scale an app up and down" in {
-      Given("a new app")
-      val app = appProxy(appId(Some("scale-up-and-down")), "v1", instances = 1, healthCheck = None)
-      val create = marathon.createAppV2(app)
-      create should be(Created)
-      waitForDeployment(create)
-
-      When("The app gets an update to be scaled up")
-      val scaleUp = marathon.updateApp(PathId(app.id), AppUpdate(instances = Some(2)))
-
-      Then("New tasks are launched")
-      scaleUp should be(OK)
-      waitForDeployment(scaleUp)
-      waitForTasks(app.id.toPath, 2)
-
-      When("The app gets an update to be scaled down")
-      val scaleDown = marathon.updateApp(PathId(app.id), AppUpdate(instances = Some(1)))
-
-      Then("Tasks are killed")
-      scaleDown should be(OK)
-      waitForEventWith("status_update_event", _.info("taskStatus") == "TASK_KILLED")
-      waitForTasks(app.id.toPath, 1)
-    }
+    //    "scale an app up and down" in {
+    //      Given("a new app")
+    //      val app = appProxy(appId(Some("scale-up-and-down")), "v1", instances = 1, healthCheck = None)
+    //      val create = marathon.createAppV2(app)
+    //      create should be(Created)
+    //      waitForDeployment(create)
+    //
+    //      When("The app gets an update to be scaled up")
+    //      val scaleUp = marathon.updateApp(PathId(app.id), AppUpdate(instances = Some(2)))
+    //
+    //      Then("New tasks are launched")
+    //      scaleUp should be(OK)
+    //      waitForDeployment(scaleUp)
+    //      waitForTasks(app.id.toPath, 2)
+    //
+    //      When("The app gets an update to be scaled down")
+    //      val scaleDown = marathon.updateApp(PathId(app.id), AppUpdate(instances = Some(1)))
+    //
+    //      Then("Tasks are killed")
+    //      scaleDown should be(OK)
+    //      waitForEventWith("status_update_event", _.info("taskStatus") == "TASK_KILLED")
+    //      waitForTasks(app.id.toPath, 1)
+    //    }
 
     "restart an app" in {
       Given("a new app")
@@ -486,77 +486,77 @@ class AppDeployIntegrationTest extends AkkaIntegrationTest with EmbeddedMarathon
       responseUpdatedVersion.value.disk should be(updatedDisk)
     }
 
-    "kill a task of an App" in {
-      Given("a new app")
-      val app = appProxy(appId(Some("kill-a-task-of-an-app")), "v1", instances = 1, healthCheck = None)
-      val create = marathon.createAppV2(app)
-      create should be(Created)
-      waitForDeployment(create)
-      val taskId = marathon.tasks(app.id.toPath).value.head.id
+    //    "kill a task of an App" in {
+    //      Given("a new app")
+    //      val app = appProxy(appId(Some("kill-a-task-of-an-app")), "v1", instances = 1, healthCheck = None)
+    //      val create = marathon.createAppV2(app)
+    //      create should be(Created)
+    //      waitForDeployment(create)
+    //      val taskId = marathon.tasks(app.id.toPath).value.head.id
+    //
+    //      When("a task of an app is killed")
+    //      val response = marathon.killTask(PathId(app.id), taskId)
+    //      response should be(OK)
+    //
+    //      waitForEventWith("status_update_event", _.info("taskStatus") == "TASK_KILLED")
+    //
+    //      Then("All instances of the app get restarted")
+    //      waitForTasks(app.id.toPath, 1)
+    //      marathon.tasks(app.id.toPath).value.head should not be taskId
+    //    }
 
-      When("a task of an app is killed")
-      val response = marathon.killTask(PathId(app.id), taskId)
-      response should be(OK)
+    //    "kill a task of an App with scaling" in {
+    //      Given("a new app")
+    //      val app = appProxy(appId(Some("kill-a-task-of-an-app-with-scaling")), "v1", instances = 2, healthCheck = None)
+    //      val create = marathon.createAppV2(app)
+    //      create should be(Created)
+    //      waitForDeployment(create)
+    //      val taskId = marathon.tasks(app.id.toPath).value.head.id
+    //
+    //      When("a task of an app is killed and scaled")
+    //      marathon.killTask(app.id.toPath, taskId, scale = true) should be(OK)
+    //      waitForEventWith("status_update_event", _.info("taskStatus") == "TASK_KILLED")
+    //
+    //      Then("All instances of the app get restarted")
+    //      waitForTasks(app.id.toPath, 1)
+    //      marathon.app(app.id.toPath).value.app.instances should be(1)
+    //    }
 
-      waitForEventWith("status_update_event", _.info("taskStatus") == "TASK_KILLED")
+    //    "kill all tasks of an App" in {
+    //      Given("a new app with multiple tasks")
+    //      val app = appProxy(appId(Some("kill-all-tasks-of-an-app")), "v1", instances = 2, healthCheck = None)
+    //      val create = marathon.createAppV2(app)
+    //      create should be(Created)
+    //      waitForDeployment(create)
+    //
+    //      When("all task of an app are killed")
+    //      val response = marathon.killAllTasks(PathId(app.id))
+    //      response should be(OK)
+    //      waitForEventWith("status_update_event", _.info("taskStatus") == "TASK_KILLED")
+    //      waitForEventWith("status_update_event", _.info("taskStatus") == "TASK_KILLED")
+    //
+    //      Then("All instances of the app get restarted")
+    //      waitForTasks(app.id.toPath, 2)
+    //    }
 
-      Then("All instances of the app get restarted")
-      waitForTasks(app.id.toPath, 1)
-      marathon.tasks(app.id.toPath).value.head should not be taskId
-    }
-
-    "kill a task of an App with scaling" in {
-      Given("a new app")
-      val app = appProxy(appId(Some("kill-a-task-of-an-app-with-scaling")), "v1", instances = 2, healthCheck = None)
-      val create = marathon.createAppV2(app)
-      create should be(Created)
-      waitForDeployment(create)
-      val taskId = marathon.tasks(app.id.toPath).value.head.id
-
-      When("a task of an app is killed and scaled")
-      marathon.killTask(app.id.toPath, taskId, scale = true) should be(OK)
-      waitForEventWith("status_update_event", _.info("taskStatus") == "TASK_KILLED")
-
-      Then("All instances of the app get restarted")
-      waitForTasks(app.id.toPath, 1)
-      marathon.app(app.id.toPath).value.app.instances should be(1)
-    }
-
-    "kill all tasks of an App" in {
-      Given("a new app with multiple tasks")
-      val app = appProxy(appId(Some("kill-all-tasks-of-an-app")), "v1", instances = 2, healthCheck = None)
-      val create = marathon.createAppV2(app)
-      create should be(Created)
-      waitForDeployment(create)
-
-      When("all task of an app are killed")
-      val response = marathon.killAllTasks(PathId(app.id))
-      response should be(OK)
-      waitForEventWith("status_update_event", _.info("taskStatus") == "TASK_KILLED")
-      waitForEventWith("status_update_event", _.info("taskStatus") == "TASK_KILLED")
-
-      Then("All instances of the app get restarted")
-      waitForTasks(app.id.toPath, 2)
-    }
-
-    "kill all tasks of an App with scaling" in {
-      Given("a new app with multiple tasks")
-      val app = appProxy(appId(Some("kill-all-tasks-of-an-app-with-scaling")), "v1", instances = 2, healthCheck = None)
-      val create = marathon.createAppV2(app)
-      create should be(Created)
-      waitForDeployment(create)
-      marathon.app(app.id.toPath).value.app.instances should be(2)
-
-      When("all task of an app are killed")
-      val result = marathon.killAllTasksAndScale(app.id.toPath)
-      result should be(OK)
-      result.value.version should not be empty
-
-      Then("All instances of the app get restarted")
-      waitForDeployment(result)
-      waitForTasks(app.id.toPath, 0)
-      marathon.app(app.id.toPath).value.app.instances should be(0)
-    }
+    //    "kill all tasks of an App with scaling" in {
+    //      Given("a new app with multiple tasks")
+    //      val app = appProxy(appId(Some("kill-all-tasks-of-an-app-with-scaling")), "v1", instances = 2, healthCheck = None)
+    //      val create = marathon.createAppV2(app)
+    //      create should be(Created)
+    //      waitForDeployment(create)
+    //      marathon.app(app.id.toPath).value.app.instances should be(2)
+    //
+    //      When("all task of an app are killed")
+    //      val result = marathon.killAllTasksAndScale(app.id.toPath)
+    //      result should be(OK)
+    //      result.value.version should not be empty
+    //
+    //      Then("All instances of the app get restarted")
+    //      waitForDeployment(result)
+    //      waitForTasks(app.id.toPath, 0)
+    //      marathon.app(app.id.toPath).value.app.instances should be(0)
+    //    }
 
     "delete an application" in {
       Given("a new app with one task")

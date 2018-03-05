@@ -56,7 +56,7 @@ class QueueController(
   private def list(implicit identity: Identity): Route = {
     def listWithStatisticsAsync(): Future[Seq[LaunchQueue.QueuedInstanceInfoWithStatistics]] = async {
       val info = await(launchQueue.listWithStatisticsAsync)
-      info.filter(t => t.inProgress && authorizer.isAuthorized(identity, ViewRunSpec, t.runSpec))
+      info.filter(t => t.runSpec.isDefined).filter(t => t.inProgress && authorizer.isAuthorized(identity, ViewRunSpec, t.runSpec.get))
     }
 
     parameters('embed.*) { embed =>
@@ -69,7 +69,7 @@ class QueueController(
 
   private def reset(appId: PathId)(implicit identity: Identity): Route = {
     onSuccess(launchQueue.listAsync) { apps =>
-      val maybeApp = apps.find(_.runSpec.id == appId).map(_.runSpec)
+      val maybeApp = apps.find(_.runSpec.map(_.id).contains(appId)).flatMap(_.runSpec)
 
       maybeApp match {
         case Some(app) =>
