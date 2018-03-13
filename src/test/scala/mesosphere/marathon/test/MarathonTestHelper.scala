@@ -12,7 +12,7 @@ import mesosphere.marathon.Protos.Constraint.Operator
 import mesosphere.marathon.api.JsonTestHelper
 import mesosphere.marathon.core.condition.Condition
 import mesosphere.marathon.core.instance.{Instance, LocalVolumeId}
-import mesosphere.marathon.core.instance.Instance.InstanceState
+import mesosphere.marathon.core.instance.Instance.{ InstanceGoal, InstanceState }
 import mesosphere.marathon.core.instance.update.InstanceChangeHandler
 import mesosphere.marathon.core.launcher.impl.{ReservationLabels, TaskLabels}
 import mesosphere.marathon.core.leadership.LeadershipModule
@@ -383,6 +383,7 @@ object MarathonTestHelper {
     instanceId = Task.Id.forRunSpec(PathId("/test")).instanceId,
     agentInfo = Instance.AgentInfo("", None, None, None, Nil),
     state = InstanceState(Condition.Created, since = clock.now(), None, healthy = None),
+    goal = InstanceGoal.Running,
     tasksMap = Map.empty[Task.Id, Task],
     runSpecVersion = clock.now(),
     UnreachableStrategy.default(),

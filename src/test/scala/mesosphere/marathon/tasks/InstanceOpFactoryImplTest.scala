@@ -4,6 +4,7 @@ package tasks
 import mesosphere.UnitTest
 import mesosphere.marathon.test.SettableClock
 import mesosphere.marathon.core.condition.Condition
+import mesosphere.marathon.core.instance.Instance.InstanceGoal
 import mesosphere.marathon.core.instance.update.InstanceUpdateOperation
 import mesosphere.marathon.core.instance.{Instance, LocalVolumeId, TestInstanceBuilder}
 import mesosphere.marathon.core.launcher.impl.InstanceOpFactoryImpl
@@ -68,7 +69,7 @@ class InstanceOpFactoryImplTest extends UnitTest with Inside {
       )
 
       val expectedInstance = Instance(
-        expectedTaskId.instanceId, expectedAgentInfo, instance.state, Map(expectedTaskId -> expectedTask),
+        expectedTaskId.instanceId, expectedAgentInfo, instance.state, InstanceGoal.Running, Map(expectedTaskId -> expectedTask),
         runSpecVersion = app.version, app.unreachableStrategy, None)
       assert(matched.instanceOp.stateOp == InstanceUpdateOperation.LaunchEphemeral(expectedInstance))
     }

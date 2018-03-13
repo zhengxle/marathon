@@ -7,7 +7,7 @@ import mesosphere.UnitTest
 import mesosphere.marathon.test.SettableClock
 import mesosphere.marathon.core.condition.Condition
 import mesosphere.marathon.core.event.{InstanceChanged, MesosStatusUpdateEvent}
-import mesosphere.marathon.core.instance.Instance.{AgentInfo, InstanceState, PrefixInstance}
+import mesosphere.marathon.core.instance.Instance.{AgentInfo, InstanceGoal, InstanceState, PrefixInstance}
 import mesosphere.marathon.core.instance.{Instance, TestInstanceBuilder}
 import mesosphere.marathon.core.pod.MesosContainer
 import mesosphere.marathon.core.task.Task
@@ -309,7 +309,7 @@ class InstanceUpdaterTest extends UnitTest {
     )
     val task = Task(taskId, runSpecVersion = clock.now(), status = taskStatus)
     val instance = Instance(
-      instanceId, agentInfo, instanceState, Map(taskId -> task), clock.now(),
+      instanceId, agentInfo, instanceState, InstanceGoal.Running, Map(taskId -> task), clock.now(),
       UnreachableStrategy.default(), None)
   }
 }

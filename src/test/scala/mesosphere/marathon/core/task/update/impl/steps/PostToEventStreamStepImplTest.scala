@@ -8,7 +8,7 @@ import mesosphere.UnitTest
 import mesosphere.marathon.test.SettableClock
 import mesosphere.marathon.core.condition.Condition
 import mesosphere.marathon.core.event.{InstanceHealthChanged, MarathonEvent}
-import mesosphere.marathon.core.instance.Instance.{InstanceState, PrefixInstance}
+import mesosphere.marathon.core.instance.Instance.{InstanceGoal, InstanceState, PrefixInstance}
 import mesosphere.marathon.core.instance.update._
 import mesosphere.marathon.core.instance.Instance
 import mesosphere.marathon.state.{PathId, UnreachableStrategy}
@@ -111,7 +111,7 @@ class PostToEventStreamStepImplTest extends UnitTest {
     val agentInfo = Instance.AgentInfo("localhost", None, None, None, Seq.empty)
     val instanceState = InstanceState(Condition.Running, clock.now(), Some(clock.now()), healthy = None)
     val instance = Instance(
-      Instance.Id(PathId("/my/app"), PrefixInstance, UUID.randomUUID()), agentInfo, instanceState, Map.empty, clock.now(),
+      Instance.Id(PathId("/my/app"), PrefixInstance, UUID.randomUUID()), agentInfo, instanceState, InstanceGoal.Running, Map.empty, clock.now(),
       UnreachableStrategy.default(), None
     )
     val eventStream = mock[EventStream]

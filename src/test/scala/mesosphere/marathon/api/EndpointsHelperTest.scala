@@ -5,7 +5,7 @@ import mesosphere.UnitTest
 import mesosphere.marathon.api.EndpointsHelper.ListTasks
 import mesosphere.marathon.core.condition.Condition
 import mesosphere.marathon.core.instance.Instance
-import mesosphere.marathon.core.instance.Instance.AgentInfo
+import mesosphere.marathon.core.instance.Instance.{ AgentInfo, InstanceGoal }
 import mesosphere.marathon.core.pod.{BridgeNetwork, ContainerNetwork, HostNetwork, Network}
 import mesosphere.marathon.core.task.Task
 import mesosphere.marathon.core.task.state.NetworkInfo
@@ -43,7 +43,7 @@ class EndpointsHelperTest extends UnitTest {
           val state = Instance.InstanceState(
             condition = Condition.Running, since = Timestamp.zero, activeSince = None, healthy = None)
           instanceId -> Instance(instanceId, agent,
-            state = state, tasksMap = Map(taskId -> task), Timestamp.zero, UnreachableStrategy.default(), None)
+            state = state, goal = InstanceGoal.Running, tasksMap = Map(taskId -> task), Timestamp.zero, UnreachableStrategy.default(), None)
         }
     }.toMap
     )

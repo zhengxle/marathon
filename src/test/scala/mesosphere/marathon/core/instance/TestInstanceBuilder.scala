@@ -2,7 +2,7 @@ package mesosphere.marathon
 package core.instance
 
 import mesosphere.marathon.core.condition.Condition
-import mesosphere.marathon.core.instance.Instance.{AgentInfo, InstanceState, LegacyInstanceImprovement}
+import mesosphere.marathon.core.instance.Instance.{AgentInfo, InstanceGoal, InstanceState, LegacyInstanceImprovement}
 import mesosphere.marathon.core.instance.update.{InstanceUpdateOperation, InstanceUpdater}
 import mesosphere.marathon.core.pod.MesosContainer
 import mesosphere.marathon.core.task.Task
@@ -159,6 +159,7 @@ object TestInstanceBuilder {
     instanceId = instanceId,
     agentInfo = TestInstanceBuilder.defaultAgentInfo,
     state = InstanceState(Condition.Created, now, None, healthy = None),
+    goal = InstanceGoal.Running,
     tasksMap = Map.empty,
     runSpecVersion = version,
     UnreachableStrategy.default(),

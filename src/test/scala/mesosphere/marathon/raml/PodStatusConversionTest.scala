@@ -4,6 +4,7 @@ package raml
 import mesosphere.UnitTest
 import mesosphere.marathon.test.SettableClock
 import mesosphere.marathon.core.health.{MesosCommandHealthCheck, MesosHttpHealthCheck, PortReference}
+import mesosphere.marathon.core.instance.Instance.InstanceGoal
 import mesosphere.marathon.core.instance.Reservation
 import mesosphere.marathon.core.pod.{ContainerNetwork, MesosContainer, PodDefinition}
 import mesosphere.marathon.core.task.state.NetworkInfoPlaceholder
@@ -511,6 +512,7 @@ object PodStatusConversionTest {
         since = since,
         activeSince = if (condition == core.condition.Condition.Created) None else Some(since),
         healthy = None),
+      goal = InstanceGoal.Running,
       tasksMap = Seq[core.task.Task](
         core.task.Task(
           taskIds.head,

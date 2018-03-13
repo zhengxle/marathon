@@ -5,7 +5,7 @@ import java.time.Clock
 
 import com.typesafe.scalalogging.StrictLogging
 import mesosphere.marathon.core.condition.Condition
-import mesosphere.marathon.core.instance.Instance.{AgentInfo, InstanceState}
+import mesosphere.marathon.core.instance.Instance.{AgentInfo, InstanceGoal, InstanceState}
 import mesosphere.marathon.core.instance.update.InstanceUpdateOperation
 import mesosphere.marathon.core.instance.{Instance, LegacyAppInstance, LocalVolume, LocalVolumeId, Reservation}
 import mesosphere.marathon.core.launcher.{InstanceOp, InstanceOpFactory, OfferMatchResult}
@@ -363,6 +363,7 @@ class InstanceOpFactoryImpl(
             activeSince = None,
             healthy = None
           ),
+          goal = InstanceGoal.Running,
           tasksMap = Map(task.taskId -> task),
           runSpecVersion = runSpec.version,
           unreachableStrategy = runSpec.unreachableStrategy,
@@ -404,6 +405,7 @@ class InstanceOpFactoryImpl(
             activeSince = None,
             healthy = None
           ),
+          goal = InstanceGoal.Running,
           tasksMap = tasks.map(t => t.taskId -> t)(collection.breakOut),
           runSpecVersion = runSpec.version,
           unreachableStrategy = runSpec.unreachableStrategy,
@@ -475,6 +477,7 @@ object InstanceOpFactoryImpl {
       instanceId,
       agentInfo = agentInfo,
       state = InstanceState(Condition.Created, since, activeSince = None, healthy = None),
+      goal = InstanceGoal.Running,
       tasksMap = taskIDs.map { taskId =>
         // the task level host ports are needed for fine-grained status/reporting later on
         val networkInfo = taskNetworkInfos.getOrElse(

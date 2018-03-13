@@ -5,7 +5,7 @@ import java.util.{Base64, UUID}
 
 import com.fasterxml.uuid.{EthernetAddress, Generators}
 import mesosphere.marathon.core.condition.Condition
-import mesosphere.marathon.core.instance.Instance.{AgentInfo, InstanceState}
+import mesosphere.marathon.core.instance.Instance.{AgentInfo, InstanceGoal, InstanceState}
 import mesosphere.marathon.core.task.Task
 import mesosphere.marathon.state.{MarathonState, PathId, Timestamp, UnreachableDisabled, UnreachableEnabled, UnreachableStrategy}
 import mesosphere.marathon.tasks.OfferUtil
@@ -27,6 +27,7 @@ case class Instance(
     instanceId: Instance.Id,
     agentInfo: Instance.AgentInfo,
     state: InstanceState,
+    goal: InstanceGoal,
     tasksMap: Map[Task.Id, Task],
     runSpecVersion: Timestamp,
     unreachableStrategy: UnreachableStrategy,
@@ -92,6 +93,45 @@ object Instance {
     * @param healthy Tells if all tasks run healthily if health checks have been enabled.
     */
   case class InstanceState(condition: Condition, since: Timestamp, activeSince: Option[Timestamp], healthy: Option[Boolean])
+
+  /**
+    * The goal for the given instance.
+    */
+  // TODO: maybe the goal should be encapsulated in the InstanceState?
+  // TODO: If an instance is Scheduled, and is requested to be Decommissioned,
+  sealed trait InstanceGoal extends Product with Serializable {
+    val value: String
+  }
+
+  object InstanceGoal {
+    /**
+      * Running defines the goal that an instance shall have an associated Task or TaskGroup running in Mesos.
+      * If the associated Task or TaskGroup terminates, it shall be replaced with a new one.
+      */
+    case object Running extends InstanceGoal {
+      override val value: String = "Running"
+    }
+
+    /**
+      * Suspended defines the goal that any Task or TaskGroup running in Mesos shall be killed, but the instance shall
+      * be kept. Once the associated Task or TaskGroup terminates, the instance will be kept in state and it is possible
+      * to launch a subsequent Task or TaskGroup in Mesos later on.
+      *
+      * Instances containing reservations should be set to Suspended unless the reservation/volume shall be deleted.
+      */
+    case object Suspended extends InstanceGoal {
+      override val value: String = "Suspended"
+    }
+
+    /**
+      * Decommissioned defines the goal that any Task or TaskGroup running in Mesos shall be killed, and once the
+      * associated Task or TaskGroup terminates, the instance shall be deleted.
+      */
+    // TODO: maybe Deleted as a name is easier to grasp? Or to type? ;)
+    case object Decommissioned extends InstanceGoal {
+      override val value: String = "Decommissioned"
+    }
+  }
 
   object InstanceState {
 
@@ -412,6 +452,20 @@ object Instance {
       }
   }
 
+  implicit object instanceGoalReads extends play.api.libs.json.Format[InstanceGoal] {
+    def reads(json: play.api.libs.json.JsValue): play.api.libs.json.JsResult[InstanceGoal] =
+      json match {
+        case play.api.libs.json.JsString(s) => s.toLowerCase match {
+          case "Running" => play.api.libs.json.JsSuccess(InstanceGoal.Running)
+          case "Suspended" => play.api.libs.json.JsSuccess(InstanceGoal.Suspended)
+          case "Decommissioned" => play.api.libs.json.JsSuccess(InstanceGoal.Decommissioned)
+          case _ => play.api.libs.json.JsError(play.api.libs.json.JsonValidationError("error.unknown.enum.literal", "InstanceGoal (Running, Suspended, Decommissioned)"))
+        }
+        case _ => play.api.libs.json.JsError(play.api.libs.json.JsonValidationError("error.unknown.enum.literal", "InstanceGoal (Running, Suspended, Decommissioned)"))
+      }
+    def writes(o: InstanceGoal): play.api.libs.json.JsValue = play.api.libs.json.JsString(o.value)
+  }
+
   implicit val instanceJsonReads: Reads[Instance] = {
     (
       (__ \ "instanceId").read[Instance.Id] ~
@@ -419,12 +473,13 @@ object Instance {
       (__ \ "tasksMap").read[Map[Task.Id, Task]] ~
       (__ \ "runSpecVersion").read[Timestamp] ~
       (__ \ "state").read[InstanceState] ~
+      (__ \ "goal").read[InstanceGoal] ~
       (__ \ "unreachableStrategy").readNullable[raml.UnreachableStrategy] ~
       (__ \ "reservation").readNullable[Reservation]
-    ) { (instanceId, agentInfo, tasksMap, runSpecVersion, state, maybeUnreachableStrategy, reservation) =>
+    ) { (instanceId, agentInfo, tasksMap, runSpecVersion, state, goal, maybeUnreachableStrategy, reservation) =>
         val unreachableStrategy = maybeUnreachableStrategy.
           map(Raml.fromRaml(_)).getOrElse(UnreachableStrategy.default())
-        new Instance(instanceId, agentInfo, state, tasksMap, runSpecVersion, unreachableStrategy, reservation)
+        new Instance(instanceId, agentInfo, state, goal, tasksMap, runSpecVersion, unreachableStrategy, reservation)
       }
   }
 
@@ -460,7 +515,8 @@ object LegacyAppInstance {
     val since = task.status.startedAt.getOrElse(task.status.stagedAt)
     val tasksMap = Map(task.taskId -> task)
     val state = Instance.InstanceState(None, tasksMap, since, unreachableStrategy)
+    val goal = InstanceGoal.Running
 
-    new Instance(task.taskId.instanceId, agentInfo, state, tasksMap, task.runSpecVersion, unreachableStrategy, None)
+    new Instance(task.taskId.instanceId, agentInfo, state, goal, tasksMap, task.runSpecVersion, unreachableStrategy, None)
   }
 }

@@ -5,6 +5,7 @@ import mesosphere.UnitTest
 import mesosphere.marathon.test.SettableClock
 import mesosphere.marathon.core.condition.Condition
 import mesosphere.marathon.core.condition.Condition._
+import mesosphere.marathon.core.instance.Instance.InstanceGoal
 import mesosphere.marathon.core.task.Task
 import mesosphere.marathon.core.task.bus.MesosTaskStatusTestHelper
 import mesosphere.marathon.state.PathId._
@@ -138,7 +139,7 @@ class InstanceTest extends UnitTest with TableDrivenPropertyChecks {
       val currentTasks = tasks(conditions.map(_ => condition))
       val newTasks = tasks(conditions)
       val state = Instance.InstanceState(None, currentTasks, clock.now(), UnreachableStrategy.default())
-      val instance = Instance(Instance.Id.forRunSpec(id), agentInfo, state, currentTasks,
+      val instance = Instance(Instance.Id.forRunSpec(id), agentInfo, state, InstanceGoal.Running, currentTasks,
         runSpecVersion = clock.now(), UnreachableStrategy.default(), None)
       (instance, newTasks)
     }
