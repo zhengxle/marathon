@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+FILE="$1"
+EXT=${FILE##*.}
+
+if [ "$EXT" == "gz" ]; then
+  cat "$FILE" | gunzip
+else
+  cat "$FILE"
+fi

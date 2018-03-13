@@ -1,0 +1,27 @@
+#!/bin/bash
+
+FOLDER="$1"
+logstash -f "$1" &
+echo $FOLDER
+while [ $(find "$FOLDER" -name "*.db" | wc -l) = 0 ]; do
+  echo "Waiting for logstash to start"
+  sleep 5
+done
+
+OLD_CONTENTS=""
+CONTENTS=""
+
+while sleep 15; do
+  CONTENTS="$(cat "$FOLDER"/*.db | sort)"
+  echo "$CONTENTS"
+
+  if [ "$CONTENTS" = "$OLD_CONTENTS" ]; then
+    echo "Looks like logstash is done"
+    break
+  else
+    OLD_CONTENTS="$CONTENTS"
+  fi
+done
+
+echo "Shutting down logstash"
+kill %1
