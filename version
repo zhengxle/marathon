@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Version script for Marathon.
+# Version script for Marathon. ken
 #
 # Change MINOR to x+1 and BRANCH_POINT to commit hash of common ancestor of master and releases/1.x
 # after a releases/1.x was cut
