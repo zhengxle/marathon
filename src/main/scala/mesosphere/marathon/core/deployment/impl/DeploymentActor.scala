@@ -191,7 +191,7 @@ private class DeploymentActor(
     val instances = await(instanceTracker.specInstances(runSpec.id))
     val launchedInstances = instances.filter(_.isLaunched)
 
-    logger.info(s"Killing all instances of ${runSpec.id}: ${launchedInstances.map(_.instanceId)}")
+    logger.info(s"Killing all instances of ${runSpec.id}: ${launchedInstances.map(_.instanceId)} according to deployment plan ${plan.id}")
     await(killService.killInstances(launchedInstances, KillReason.DeletingApp))
 
     launchQueue.resetDelay(runSpec)

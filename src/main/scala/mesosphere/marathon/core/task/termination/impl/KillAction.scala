@@ -87,7 +87,7 @@ private[termination] object KillAction extends StrictLogging {
       }
     } else {
       val knownOrNot = if (knownInstance.isDefined) "known" else "unknown"
-      logger.warn("Killing {} {} of instance {}", knownOrNot, taskIds.mkString(","), instanceId)
+      logger.warn("Killing {} {} of {}", knownOrNot, taskIds.mkString(","), instanceId)
       KillAction.IssueKillRequest
     }
   }
