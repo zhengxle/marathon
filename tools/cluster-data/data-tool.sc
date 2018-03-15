@@ -4,6 +4,8 @@ import $ivy.`org.apache.spark::spark-sql:2.2.1`
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.types.{TimestampType, IntegerType}
 import org.json4s.jackson.Serialization
+import $file.util
+import util.Summary
 
 val FrameDurationMS = (60 * 1000)
 
@@ -13,7 +15,8 @@ case class LogRow(
   class2: Option[String],
   host: String,
   size: Option[Long], // httpSize
-  status: Option[String] // health Check healthy
+  status: Option[String], // health Check healthy
+  httpStatus: Option[Long] // http response code
 )
 
 case class FrameSummary(
@@ -25,45 +28,13 @@ case class FrameSummary(
   taskLaunchCount: Int,
   offersProcessedCount: Int,
   marathonHealthCheckResponseCount: Int,
-  marathonHealthCheckFailCount: Int
+  marathonHealthCheckFailCount: Int,
+  httpStatus1xx: Int,
+  httpStatus2xx: Int,
+  httpStatus3xx: Int,
+  httpStatus4xx: Int,
+  httpStatus5xx: Int
 )
-
-case class Summary(
-  p25: BigDecimal,
-  p50: BigDecimal,
-  p75: BigDecimal,
-  p90: BigDecimal,
-  p95: BigDecimal,
-  p99: BigDecimal,
-  max: BigDecimal)
-
-object Summary {
-  private val percentiles: Seq[Double] = Seq(0.25, 0.5, 0.75, 0.90, 0.95, 0.99, 1.0)
-  def ofInt(data: Seq[Int]): Summary = {
-    val result = getPercentilesInt(data, percentiles)
-    Summary(result(0), result(1), result(2), result(3), result(4), result(5), result(6))
-  }
-  def ofLong(data: Seq[Long]): Summary = {
-    val result = getPercentilesLong(data, percentiles)
-    Summary(result(0), result(1), result(2), result(3), result(4), result(5), result(6))
-  }
-
-  private def getPercentilesInt(data: Seq[Int], percentiles: Seq[Double]): Seq[Int] = {
-    val sorted = data.sorted
-    val lastElement = data.sorted.length - 1
-    percentiles.map { percentile =>
-      sorted((percentile * lastElement).toInt)
-    }
-  }
-
-  private def getPercentilesLong(data: Seq[Long], percentiles: Seq[Double]): Seq[Long] = {
-    val sorted = data.sorted
-    val lastElement = data.sorted.length - 1
-    percentiles.map { percentile =>
-      sorted((percentile * lastElement).toInt)
-    }
-  }
-}
 
 def matchesClass(class1: String): LogRow => Boolean = { message =>
   message._class.contains(class1)
@@ -73,6 +44,16 @@ def matchesClass(class1: String, class2: String): LogRow => Boolean = { message 
   message._class.contains(class1) && message.class2.contains(class2)
 }
 
+case class HealthCheckCounts(
+  responses: Summary,
+  failures: Summary)
+
+case class HttpResponseCodeSummary(
+  `1xx`: Summary,
+  `2xx`: Summary,
+  `3xx`: Summary,
+  `4xx`: Summary,
+  `5xx`: Summary)
 
 case class LogSummary(
   frameSizeMs: Int,
@@ -83,11 +64,11 @@ case class LogSummary(
   taskStatusCount: Summary,
   taskLaunchCount: Summary,
   offersProcessedCount: Summary,
-  marathonHealthCheckResponseCount: Summary,
-  marathonHealthCheckFailCount: Summary
-)
+  marathonHealthCounts: HealthCheckCounts,
+  httpResponseCodes: HttpResponseCodeSummary)
 
 @main def main(inputJsonFile: Path): Unit = {
+  // val inputJsonFile = pwd / "marathon-logs.json.ld"
   val sessionFolder = s"file:${inputJsonFile/up}/"
   System.err.println(s"sessionFolder = ${sessionFolder}")
   val spark = SparkSession.
@@ -178,6 +159,8 @@ case class LogSummary(
       case ((frame, host), messages) => leaders.get(frame).contains(host)
     } }.
     map { case ((frame, host), messages) =>
+      val httpStatuses = messages.iterator.filter(matchesClass("http", "response")).flatMap(_.httpStatus).toSeq
+
       FrameSummary(
         windowStart = frame * FrameDurationMS,
         host = host,
@@ -189,8 +172,12 @@ case class LogSummary(
         taskLaunchCount = messages.iterator.filter(matchesClass("tasks", "launch")).size,
         offersProcessedCount = messages.iterator.filter(matchesClass("offer", "processed")).size,
         marathonHealthCheckResponseCount = messages.iterator.filter(matchesClass("health", "result")).size,
-        marathonHealthCheckFailCount = messages.iterator.filter(matchesClass("health", "result")).filter(_.status != Some("Healthy")).size
-      )
+        marathonHealthCheckFailCount = messages.iterator.filter(matchesClass("health", "result")).filter(_.status != Some("Healthy")).size,
+        httpStatus1xx = httpStatuses.count { s => s >= 100 && s < 200 },
+        httpStatus2xx = httpStatuses.count { s => s >= 200 && s < 300 },
+        httpStatus3xx = httpStatuses.count { s => s >= 300 && s < 400 },
+        httpStatus4xx = httpStatuses.count { s => s >= 400 && s < 500 },
+        httpStatus5xx = httpStatuses.count { s => s >= 500 && s < 600 })
     }.collect
 
   val logSummary = LogSummary(
@@ -202,8 +189,16 @@ case class LogSummary(
     taskStatusCount = Summary.ofInt(leaderFrames.map(_.taskStatusCount)),
     taskLaunchCount = Summary.ofInt(leaderFrames.map(_.taskLaunchCount)),
     offersProcessedCount = Summary.ofInt(leaderFrames.map(_.offersProcessedCount)),
-    marathonHealthCheckResponseCount = Summary.ofInt(leaderFrames.map(_.marathonHealthCheckResponseCount)),
-    marathonHealthCheckFailCount = Summary.ofInt(leaderFrames.map(_.marathonHealthCheckFailCount)))
+    marathonHealthCounts = HealthCheckCounts(
+      responses = Summary.ofInt(leaderFrames.map(_.marathonHealthCheckResponseCount)),
+      failures = Summary.ofInt(leaderFrames.map(_.marathonHealthCheckFailCount))),
+    httpResponseCodes = HttpResponseCodeSummary(
+      `1xx` = Summary.ofInt(leaderFrames.map(_.httpStatus1xx)),
+      `2xx` = Summary.ofInt(leaderFrames.map(_.httpStatus2xx)),
+      `3xx` = Summary.ofInt(leaderFrames.map(_.httpStatus3xx)),
+      `4xx` = Summary.ofInt(leaderFrames.map(_.httpStatus4xx)),
+      `5xx` = Summary.ofInt(leaderFrames.map(_.httpStatus5xx)))
+  )
 
   implicit val formats = org.json4s.DefaultFormats
   println(Serialization.write(logSummary))

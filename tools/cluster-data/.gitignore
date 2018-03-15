@@ -1,2 +1,3 @@
 bin/amm-2.11
 logstash-conf
+marathon-logs.json.ld
