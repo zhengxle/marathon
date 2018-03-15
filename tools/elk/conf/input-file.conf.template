@@ -3,6 +3,7 @@ input {
     path => %FILE%
     start_position => "beginning"
     sincedb_path => %SINCEDB%
+    sincedb_write_interval => 1
     codec => %CODEC%
     %EXTRA%
   }
