@@ -14,7 +14,8 @@ target/%/scratch:
 	mkdir -p $@
 
 target/%/scratch/marathon-logs.json.ld: target/%/logstash-conf/json/30-output.conf | target/%/scratch
-	bin/run-logstash $(PWD)/target/$*/logstash-conf/json
+	rm -f target/$*/logstash-conf/output.json.ld target/$*/logstash-conf/json/*.db
+	bin/run-logstash -f $(PWD)/target/$*/logstash-conf/json
 	mv target/$*/logstash-conf/output.json.ld $@
 
 target/%/marathon-log-metrics.json: target/%/scratch/marathon-logs.json.ld | bin/amm-2.11
@@ -51,4 +52,8 @@ target/%/scratch/mesos-info.json: | target/%/scratch
 
 target/%/cluster-stats.json: target/%/scratch/marathon-pods.json target/%/scratch/marathon-apps.json target/%/scratch/marathon-tasks.json target/%/scratch/mesos-tasks.json target/%/scratch/mesos-agents.json target/%/scratch/mesos-frameworks.json target/%/scratch/mesos-info.json
 	JAVA_OPTS=-Xmx2g bin/amm-2.11 cluster-state-stats.sc target/$*/scratch/  > $@.work
+	mv $@.work $@
+
+target/%/report.html: target/%/cluster-stats.json target/%/marathon-log-metrics.json | bin/amm-2.11
+	bin/amm-2.11 report.sc target/$*/marathon-log-metrics.json target/$*/cluster-stats.json > $@.work
 	mv $@.work $@

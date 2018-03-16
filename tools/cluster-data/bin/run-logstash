@@ -1,27 +1,27 @@
 #!/bin/bash
 
-FOLDER="$1"
-logstash -f "$1" &
-echo $FOLDER
-while [ $(find "$FOLDER" -name "*.db" | wc -l) = 0 ]; do
+logstash "$@" &
+while ! ( curl localhost:9600/_node/stats -f -s ); do
   echo "Waiting for logstash to start"
   sleep 5
 done
 
-OLD_CONTENTS=""
-CONTENTS=""
+OLD_EVENTS=""
+EVENTS=""
 
 while sleep 5; do
-  CONTENTS="$(cat "$FOLDER"/*.db | sort)"
-  echo "$CONTENTS"
+  EVENTS="$(curl localhost:9600/_node/stats | jq .pipelines.main.events.out)"
+  echo "Events: $EVENTS"
 
-  if [ "$CONTENTS" = "$OLD_CONTENTS" ]; then
+  if [ "$EVENTS" -gt 0 ] && [ "$EVENTS" = "$OLD_EVENTS" ]; then
     echo "Looks like logstash is done"
+    sleep 5
     break
   else
-    OLD_CONTENTS="$CONTENTS"
+    OLD_EVENTS="$EVENTS"
   fi
 done
 
 echo "Shutting down logstash"
 kill %1
+wait

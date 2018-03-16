@@ -5,7 +5,9 @@ import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.types.{TimestampType, IntegerType}
 import org.json4s.jackson.Serialization
 import $file.util
+import $file.schema
 import util.Summary
+import schema.{LogSummary, HttpResponseCodeSummary, HealthCheckCounts}
 
 val FrameDurationMS = (60 * 1000)
 
@@ -16,7 +18,9 @@ case class LogRow(
   host: String,
   size: Option[Long], // httpSize
   status: Option[String], // health Check healthy
-  httpStatus: Option[Long] // http response code
+  httpStatus: Option[Long], // http response code
+  uri: Option[String],
+  params: Option[String]
 )
 
 case class FrameSummary(
@@ -29,6 +33,7 @@ case class FrameSummary(
   offersProcessedCount: Int,
   marathonHealthCheckResponseCount: Int,
   marathonHealthCheckFailCount: Int,
+  dcosUIFullGroupEmbedCount: Int,
   httpStatus1xx: Int,
   httpStatus2xx: Int,
   httpStatus3xx: Int,
@@ -43,29 +48,43 @@ def matchesClass(class1: String): LogRow => Boolean = { message =>
 def matchesClass(class1: String, class2: String): LogRow => Boolean = { message =>
   message._class.contains(class1) && message.class2.contains(class2)
 }
-
-case class HealthCheckCounts(
-  responses: Summary,
-  failures: Summary)
-
-case class HttpResponseCodeSummary(
-  `1xx`: Summary,
-  `2xx`: Summary,
-  `3xx`: Summary,
-  `4xx`: Summary,
-  `5xx`: Summary)
-
-case class LogSummary(
-  frameSizeMs: Int,
-  frames: Int,
-  detectedFailovers: Int,
-  newDeploymentCount: Summary,
-  httpResponseTotalSize: Summary,
-  taskStatusCount: Summary,
-  taskLaunchCount: Summary,
-  offersProcessedCount: Summary,
-  marathonHealthCounts: HealthCheckCounts,
-  httpResponseCodes: HttpResponseCodeSummary)
+/**
+  * Given a sorted list of leader candidates for a series of frames, fill in any consecutive gaps where no leader is
+  * known, but the previous leader is still reporting.
+  *
+  * If a frame contains a leader transition such two hosts log leader-like messages, then we assume neither are the
+  * leader for the frame.
+  */
+def deduceLeader(sortedLeaderCandidates: Seq[(Long, Seq[(String, Boolean)])]): (Map[Long, String], Int) = {
+  val leadersBuilder = Map.newBuilder[Long, String]
+  var currentLeader: Option[String] = None
+  var totalLeaders = 0
+  sortedLeaderCandidates.foreach { case (window, candidates) =>
+    val windowLeaders = candidates.collect { case (candidate, true) => candidate }
+    windowLeaders match {
+      case candidate :: Nil =>
+        // indisupted leader
+        if (!currentLeader.contains(candidate)) {
+          currentLeader = Some(candidate)
+          totalLeaders += 1
+        }
+        leadersBuilder += window -> candidate
+      case l if l.length > 1 => // multiple candidates
+                                // transitioning
+        currentLeader = None
+      case Nil =>
+        // unknown
+        // only assume leader if still reporting for this window
+        currentLeader match {
+          case Some(l) if candidates.exists { case (host, knownToBeLeader) => l == host } =>
+            leadersBuilder += window -> l
+          case _ =>
+            // previous leader did not report any log messages this frame. Do not mark any node a leader for this frame.
+        }
+    }
+  }
+  (leadersBuilder.result, totalLeaders)
+}
 
 @main def main(inputJsonFile: Path): Unit = {
   // val inputJsonFile = pwd / "marathon-logs.json.ld"
@@ -112,47 +131,8 @@ case class LogSummary(
     collect.
     sortBy(_._1)
 
-  /**
-    * Given a sorted list of leader candidates for a series of frames, fill in any consecutive gaps where no leader is
-    * known, but the previous leader is still reporting.
-    *
-    * If a frame contains a leader transition such two hosts log leader-like messages, then we assume neither are the
-    * leader for the frame.
-    */
-  def deduceLeader(sortedLeaderCandidates: Seq[(Long, Seq[(String, Boolean)])]): (Map[Long, String], Int) = {
-    val leadersBuilder = Map.newBuilder[Long, String]
-    var currentLeader: Option[String] = None
-    var totalLeaders = 0
-    sortedLeaderCandidates.foreach { case (window, candidates) =>
-      val windowLeaders = candidates.collect { case (candidate, true) => candidate }
-      windowLeaders match {
-        case candidate :: Nil =>
-          // indisupted leader
-          if (!currentLeader.contains(candidate)) {
-            currentLeader = Some(candidate)
-            totalLeaders += 1
-          }
-          leadersBuilder += window -> candidate
-        case l if l.length > 1 => // multiple candidates
-                                  // transitioning
-          currentLeader = None
-        case Nil =>
-          // unknown
-          // only assume leader if still reporting for this window
-          currentLeader match {
-            case Some(l) if candidates.exists { case (host, knownToBeLeader) => l == host } =>
-              leadersBuilder += window -> l
-            case _ =>
-              // previous leader did not report any log messages this frame. Do not mark any node a leader for this frame.
-          }
-      }
-    }
-    (leadersBuilder.result, totalLeaders)
-  }
 
   val (leaders, totalLeaders) = deduceLeader(leaderCandidates)
-
-  leaders.filter { case (_, hosts) => hosts.length == 1 }
 
   val leaderFrames = grouped.
     filter { _ match {
@@ -173,6 +153,9 @@ case class LogSummary(
         offersProcessedCount = messages.iterator.filter(matchesClass("offer", "processed")).size,
         marathonHealthCheckResponseCount = messages.iterator.filter(matchesClass("health", "result")).size,
         marathonHealthCheckFailCount = messages.iterator.filter(matchesClass("health", "result")).filter(_.status != Some("Healthy")).size,
+        dcosUIFullGroupEmbedCount = messages.iterator.filter(matchesClass("http", "response")).filter { r =>
+          r.uri == Some("/v2/groups") && r.params.exists { p => p.contains("_timestamp") && p.contains("embed=group.apps.deployments") }
+        }.size,
         httpStatus1xx = httpStatuses.count { s => s >= 100 && s < 200 },
         httpStatus2xx = httpStatuses.count { s => s >= 200 && s < 300 },
         httpStatus3xx = httpStatuses.count { s => s >= 300 && s < 400 },
@@ -180,18 +163,26 @@ case class LogSummary(
         httpStatus5xx = httpStatuses.count { s => s >= 500 && s < 600 })
     }.collect
 
+  val taskStatusSummary = Summary.ofInt(leaderFrames.map(_.taskStatusCount))
+  val httpResponseTotalSizeSummary = Summary.ofLong(leaderFrames.map(_.httpResponseTotalSize))
+
+  // val httpSizeSlopes = (sizes.iterator).sliding(2).map { case Seq(a, b) => (a, (b-a)/(a+1)) }
+  // .foldLeft((0L,0L)) { case (r@(rThreshold, rDeltaMult), t@(threshold, deltaMult)) => if (deltaMult > rDeltaMult) t else r }
+  // val nonEmptyLeaderFrames = leaderFrames.filter(_.taskStatusCount > (taskStatusSummary.p50 / 2)) // sometimes we get idle frames in Marathon. Looking at task status count medians helps to filter these out
+
   val logSummary = LogSummary(
     frameSizeMs = FrameDurationMS,
     frames = leaderFrames.length,
     detectedFailovers = totalLeaders - 1,
     newDeploymentCount = Summary.ofInt(leaderFrames.map(_.newDeploymentCount)),
-    httpResponseTotalSize = Summary.ofLong(leaderFrames.map(_.httpResponseTotalSize)),
-    taskStatusCount = Summary.ofInt(leaderFrames.map(_.taskStatusCount)),
+    httpResponseTotalSize = httpResponseTotalSizeSummary,
+    taskStatusCount = taskStatusSummary,
     taskLaunchCount = Summary.ofInt(leaderFrames.map(_.taskLaunchCount)),
     offersProcessedCount = Summary.ofInt(leaderFrames.map(_.offersProcessedCount)),
     marathonHealthCounts = HealthCheckCounts(
       responses = Summary.ofInt(leaderFrames.map(_.marathonHealthCheckResponseCount)),
       failures = Summary.ofInt(leaderFrames.map(_.marathonHealthCheckFailCount))),
+    dcosUIFullGroupEmbedCount = Summary.ofInt(leaderFrames.map(_.dcosUIFullGroupEmbedCount)),
     httpResponseCodes = HttpResponseCodeSummary(
       `1xx` = Summary.ofInt(leaderFrames.map(_.httpStatus1xx)),
       `2xx` = Summary.ofInt(leaderFrames.map(_.httpStatus2xx)),

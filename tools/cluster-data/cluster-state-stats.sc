@@ -5,41 +5,17 @@ import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.types.{TimestampType, IntegerType}
 import org.json4s.jackson.Serialization
 import $file.util
+import $file.schema
 import util.Summary
-
-case class HCStat(protocol: String, count: Long)
-case class MesosTaskState(state: String, count: Long)
-case class AgentSummaryVersion(version: String, count: Long)
-case class AgentSummary(
-  activeCount: Long,
-  inactiveCount: Long,
-  cpus: Summary, mem: Summary, disk: Summary, gpus: Summary,
-  unusedCpus: Summary, unusedMem: Summary, unusedDisk: Summary, unusedGpus: Summary,
-  unreservedCpus: Summary, unreservedMem: Summary, unreservedDisk: Summary, unreservedGpus: Summary,
-  versions: Seq[AgentSummaryVersion])
+import schema._
 
 case class AgentInfo(
   active: Boolean,
   cpus: Double, mem: Long, disk: Long, gpus: Long,
-  unusedCpus: Double, unusedMem: Long, unusedDisk: Long, unusedGpus: Long,
+  availableCpus: Double, availableMem: Long, availableDisk: Long, availableGpus: Long,
   unreservedCpus: Double, unreservedMem: Long, unreservedDisk: Long, unreservedGpus: Long)
 
-case class MesosInfo(version: String, electedTime: Double)
 
-case class MarathonSummary(appCount: Long, tasksCount: Long, healthChecks: Seq[HCStat])
-
-case class FrameworkSummary(
-  activeCount: Long,
-  inactiveCount: Long)
-
-case class MesosSummary(
-  mesosInfo: MesosInfo,
-  agentSummary: AgentSummary,
-  frameworkSummary: FrameworkSummary)
-
-case class ClusterState(
-  rootMarathon: MarathonSummary,
-  mesos: MesosSummary)
 
 @main def main(prefix: Path): Unit = {
   val sessionFolder = s"file:${pwd}/"
@@ -108,10 +84,10 @@ case class ClusterState(
 SELECT
   active,
   resources.cpus, resources.mem, resources.disk, resources.gpus,
-  resources.cpus - used_resources.cpus AS unusedCpus,
-  resources.mem - used_resources.mem   AS unusedMem,
-  resources.disk - used_resources.disk AS unusedDisk,
-  resources.gpus - used_resources.gpus AS unusedGpus,
+  resources.cpus - used_resources.cpus AS availableCpus,
+  resources.mem - used_resources.mem   AS availableMem,
+  resources.disk - used_resources.disk AS availableDisk,
+  resources.gpus - used_resources.gpus AS availableGpus,
   unreserved_resources.cpus AS unreservedCpus,
   unreserved_resources.mem  AS unreservedMem,
   unreserved_resources.disk AS unreservedDisk,
@@ -128,22 +104,33 @@ FROM mesos_agents
   val agentSummary = AgentSummary(
     activeCount = agentInfos.count(_.active),
     inactiveCount = agentInfos.count { ai => ! ai.active },
-    cpus = Summary.ofDouble(agentInfos.map(_.cpus)),
-    mem = Summary.ofLong(agentInfos.map(_.mem)),
-    disk = Summary.ofLong(agentInfos.map(_.disk)),
-    gpus = Summary.ofLong(agentInfos.map(_.gpus)),
-    unusedCpus = Summary.ofDouble(agentInfos.map(_.unusedCpus)),
-    unusedMem = Summary.ofLong(agentInfos.map(_.unusedMem)),
-    unusedDisk = Summary.ofLong(agentInfos.map(_.unusedDisk)),
-    unusedGpus = Summary.ofLong(agentInfos.map(_.unusedGpus)),
-    unreservedCpus = Summary.ofDouble(agentInfos.map(_.unreservedCpus)),
-    unreservedMem = Summary.ofLong(agentInfos.map(_.unreservedMem)),
-    unreservedDisk = Summary.ofLong(agentInfos.map(_.unreservedDisk)),
-    unreservedGpus = Summary.ofLong(agentInfos.map(_.unreservedGpus)),
-    versions = agentVersions)
+    resources = Map(
+      "cpus" -> ResourceSummary(
+        total = Summary.ofDouble(agentInfos.map(_.cpus)),
+        available = Summary.ofDouble(agentInfos.map(_.availableCpus)),
+        unreserved = Summary.ofDouble(agentInfos.map(_.unreservedCpus))
+      ),
+      "mem" -> ResourceSummary(
+        total = Summary.ofLong(agentInfos.map(_.mem)),
+        available = Summary.ofLong(agentInfos.map(_.availableMem)),
+        unreserved = Summary.ofLong(agentInfos.map(_.unreservedMem))
+      ),
+      "disk" -> ResourceSummary(
+        total = Summary.ofLong(agentInfos.map(_.disk)),
+        available = Summary.ofLong(agentInfos.map(_.availableDisk)),
+        unreserved = Summary.ofLong(agentInfos.map(_.unreservedDisk))
+      ),
+      "gpus" -> ResourceSummary(
+        total = Summary.ofLong(agentInfos.map(_.gpus)),
+        available = Summary.ofLong(agentInfos.map(_.availableGpus)),
+        unreserved = Summary.ofLong(agentInfos.map(_.unreservedGpus))
+      )
+    ),
+    versions = agentVersions
+  )
 
   // Mesos master version
-  val mesosInfoR = spark.sql("select version, elected_time AS electedTime FROM mesos_info").as[MesosInfo].take(1).head
+  val mesosInfoR = spark.sql("select version, elected_time AS electedTimeMillis FROM mesos_info").as[MesosInfo].take(1).head
 
 
   val cs = ClusterState(
@@ -152,11 +139,13 @@ FROM mesos_agents
       tasksCount = marathonTasksCount,
       healthChecks = hcStats),
     mesos = MesosSummary(
-      mesosInfo = mesosInfoR,
+      info = mesosInfoR,
       agentSummary = agentSummary,
       frameworkSummary = FrameworkSummary(
         inactiveCount = frameworkCounts(false),
-        activeCount = frameworkCounts(true))))
+        activeCount = frameworkCounts(true)),
+      taskState = mesosTaskStats
+    ))
 
   implicit val formats = org.json4s.DefaultFormats
   println(Serialization.write(cs))
