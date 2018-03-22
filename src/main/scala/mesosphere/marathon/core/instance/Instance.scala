@@ -54,6 +54,8 @@ case class Instance(
   def isTerminated: Boolean = state.condition.isTerminal
   def isActive: Boolean = state.condition.isActive
   def hasReservation: Boolean = reservation.isDefined
+  def isScheduled: Boolean = state.condition == Condition.Scheduled
+  def isProvisioned: Boolean = state.condition == Condition.Provisioned
 
   override def mergeFromProto(message: Protos.Json): Instance = {
     Json.parse(message.getJson).as[Instance]

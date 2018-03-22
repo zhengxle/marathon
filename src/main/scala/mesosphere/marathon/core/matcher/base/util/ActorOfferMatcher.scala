@@ -5,6 +5,7 @@ import akka.actor.ActorRef
 import com.typesafe.scalalogging.StrictLogging
 import mesosphere.marathon.core.matcher.base.OfferMatcher
 import mesosphere.marathon.core.matcher.base.OfferMatcher.MatchedInstanceOps
+import mesosphere.marathon.core.task.tracker.InstanceTracker.SpecInstances
 import mesosphere.marathon.state.PathId
 import org.apache.mesos.Protos.Offer
 
@@ -43,7 +44,7 @@ object ActorOfferMatcher {
     * TODO(jdef) pods will probably require a non-LaunchTasks message
     *
     * @param remainingOffer Part of the offer that has not been matched.
-    * @param promise The promise to fullfil with match.
+    * @param promise The promise to fulfill with match.
     */
   case class MatchOffer(remainingOffer: Offer, promise: Promise[MatchedInstanceOps])
 }

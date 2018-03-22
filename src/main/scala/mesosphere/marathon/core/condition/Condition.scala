@@ -49,10 +49,16 @@ object Condition {
   sealed trait Failure extends Terminal
   sealed trait Active extends Condition
 
+  /** Scheduled: Task should be launched by matching offers. Mesos does not know anything about it. */
+  case object Scheduled extends Condition
+
+  /** Provisioned: An offer for task has been accepted but Mesos did not start the task yet. */
+  case object Provisioned extends Condition
+
   /** Reserved: Task with persistent volume has reservation, but is not launched yet */
   case object Reserved extends Condition
 
-  /** Created: Task is known in marathon and sent to mesos, but not staged yet */
+  /** Created: Task is known in marathon and sent to Mesos, but not staged yet */
   case object Created extends Active
 
   /** Error: indicates that a task launch attempt failed because of an error in the task specification */

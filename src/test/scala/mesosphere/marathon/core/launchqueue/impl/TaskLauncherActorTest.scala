@@ -301,7 +301,7 @@ class TaskLauncherActorTest extends AkkaUnitTest {
           offerMatcherManager, clock, instanceOpFactory,
           maybeOfferReviver = None,
           instanceTracker, rateLimiterActor.ref, offerMatchStatisticsActor.ref,
-          f.app, instancesToLaunch = 1,
+          f.app,
           localRegion
         ) {
           override protected def scheduleTaskOperationTimeout(
