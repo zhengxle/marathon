@@ -22,8 +22,30 @@ package state {
   }
 
   case class Instance(
-      instanceId: UUID,
-      runSpec: RunSpecRef)
+    instanceId: UUID,
+    runSpec: RunSpecRef,
+    incarnation: Long,
+    goal: Instance.Goal
+  )
+
+  object Instance {
+    sealed trait Goal
+    object Goal {
+      case object Running extends Goal
+      case object Stopped extends Goal
+    }
+
+    def mesosIdFor(instance: Instance): String =
+      s"${instance.runSpec.id}#${instance.instanceId}#${instance.incarnation}"
+
+    def parseMesosTaskId(mesosTaskId: String): Option[(String, UUID, Long)] =
+      mesosTaskId.split("#") match {
+        case Array(name, uuid, incarnation) =>
+          Some((name, UUID.fromString(uuid), java.lang.Long.parseLong(incarnation)))
+        case _ =>
+          None
+      }
+  }
 
   case class DeploymentPolicy(
       id: UUID,

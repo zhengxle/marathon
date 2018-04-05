@@ -8,6 +8,7 @@ import mesosphere.marathon.poc.state.{ RunSpec, RunSpecRef, Instance }
 import org.scalatest.Inside
 
 class StateAuthorityTest extends AkkaUnitTestLike with Inside {
+  import StateAuthority.{ StateAuthorityInputEvent, CommandRequest, Effect, StateCommand, MarkPersisted }
   val instanceId = UUID.fromString("deadbeef-c011-0123-4567-89abcdefffff")
   "invalid commands are rejected right away" in {
     val requestId = 1011

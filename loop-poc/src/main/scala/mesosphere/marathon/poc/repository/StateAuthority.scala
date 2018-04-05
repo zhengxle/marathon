@@ -2,87 +2,38 @@ package mesosphere.marathon
 package poc.repository
 
 import akka.stream.scaladsl.Flow
-import java.util.UUID
-import mesosphere.marathon.poc.state._
+import mesosphere.marathon.poc.state.{ RunSpec, Instance }
 import monocle.macros.syntax.lens._
-import scala.collection.immutable.Queue
-
-sealed trait Effect
-object Effect {
-  // reason ideally is modeled with more detail than string
-  case class PublishResult(requestId: Long, result: Either[Rejection, Result]) extends Effect
-  case class PersistUpdates(version: Long, updates: Seq[StateTransition]) extends Effect
-  case class PublishUpdates(updates: Seq[StateTransition]) extends Effect
-}
-case class PendingUpdate(version: Long, requestId: Long, updates: Seq[StateTransition])
-
-case class MarathonState(
-    rootGroup: RootGroup,
-    instances: InstanceSet)
-object MarathonState {
-  def empty = MarathonState(rootGroup = RootGroup.empty, instances = InstanceSet.empty)
-}
-
-case class StateFrame(
-    version: Long,
-    pendingUpdates: Queue[PendingUpdate],
-    state: MarathonState)
-
-object StateFrame {
-  val empty = StateFrame(
-    state = MarathonState.empty,
-    version = 1,
-    pendingUpdates = Queue.empty)
-}
-
-sealed trait StateAuthorityInputEvent
-
-/**
-  * Notify that a version is persisted. Should only be submitted by storage component.
-  */
-private[repository] case class MarkPersisted(version: Long) extends StateAuthorityInputEvent
-
-case class CommandRequest(requestId: Long, command: StateCommand) extends StateAuthorityInputEvent
-
-sealed trait StateCommand
-object StateCommand {
-  case class PutApp(runSpec: RunSpec) extends StateCommand
-
-  case class AddInstance(instance: Instance) extends StateCommand
-}
-
-case class Rejection(reason: String)
-
-case class Result(
-    stateTransitions: Seq[StateTransition])
-
-sealed trait StateTransition
-object StateTransition {
-  case class RunSpecUpdated(ref: RunSpecRef, runSpec: Option[RunSpec]) extends StateTransition
-  case class InstanceUpdated(instanceId: UUID, instance: Option[Instance]) extends StateTransition
-
-  // extract and share with Marathon scheduler
-  def applyTransitions(frame: MarathonState, effects: Seq[StateTransition]): MarathonState = {
-    effects.foldLeft(frame) {
-      case (frame, update: InstanceUpdated) =>
-        update.instance match {
-          case Some(instance) =>
-            frame.lens(_.instances).modify(_.withInstance(instance))
-          case None =>
-            frame.lens(_.instances).modify(_.withoutInstance(update.instanceId))
-        }
-      case (frame, update: RunSpecUpdated) =>
-        update.runSpec match {
-          case Some(runSpec) =>
-            frame.lens(_.rootGroup).modify(_.withApp(runSpec))
-          case None =>
-            frame.lens(_.rootGroup).modify(_.withoutApp(update.ref))
-        }
-    }
-  }
-}
 
 object StateAuthority {
+  sealed trait StateAuthorityInputEvent
+
+  /**
+    * Notify that a version is persisted. Should only be submitted by storage component.
+    */
+  case class MarkPersisted(version: Long) extends StateAuthorityInputEvent
+
+  case class CommandRequest(requestId: Long, command: StateCommand) extends StateAuthorityInputEvent
+
+  sealed trait StateCommand
+  object StateCommand {
+    case class PutApp(runSpec: RunSpec) extends StateCommand
+
+    case class AddInstance(instance: Instance) extends StateCommand
+  }
+
+  sealed trait Effect
+  object Effect {
+    // reason ideally is modeled with more detail than string
+    case class PublishResult(requestId: Long, result: Either[Rejection, Result]) extends Effect
+    case class PersistUpdates(version: Long, updates: Seq[StateTransition]) extends Effect
+    case class PublishUpdates(updates: Seq[StateTransition]) extends Effect
+  }
+
+  case class Rejection(reason: String)
+  case class Result(
+      stateTransitions: Seq[StateTransition])
+
   val commandProcessorFlow = Flow[StateAuthorityInputEvent].statefulMapConcat { () =>
     var currentFrame: StateFrame = StateFrame.empty
 
@@ -93,6 +44,13 @@ object StateAuthority {
       effects
     }
   }
+
+  /**
+    * Use to prevent log jam. If the state authority stage is not accepting events because it is blocked reporting back
+    * MarkPersisted is back-pressuring the storage mechanism, which is back-pressuring the state authority stage, we can
+    * endlessly pull MarkPersisted events and collapse them together.
+    */
+  val markPersistedConflator = Flow[MarkPersisted].conflate { (a, b) => MarkPersisted(Math.max(a.version, b.version)) }
 
   /**
     * Given a command and a requestId, return some effects and the next frame
