@@ -12,9 +12,9 @@ import org.apache.mesos.v1.mesos.TaskStatus
 import monocle.macros.syntax.lens._
 
 case class MesosTask(
-  taskId: String,
-  agentId: String,
-  phase: MesosTask.Phase) {
+    taskId: String,
+    agentId: String,
+    phase: MesosTask.Phase) {
 
   val (name, instanceId, incarnation) = Instance.parseMesosTaskId(taskId) match {
     case Some(tpl) => tpl
@@ -43,16 +43,16 @@ object MesosTask {
       * We have received a MesosStatus for this task.
       */
     case class Running(
-      status: TaskStatus) extends Phase
+        status: TaskStatus) extends Phase
 
     /** We're killing this task */
     case class Killing(
-      lastkilledAt: Instant,
-      status: TaskStatus) extends Phase
+        lastkilledAt: Instant,
+        status: TaskStatus) extends Phase
 
     case class Terminal(
-      timestamp: Instant,
-      status: TaskStatus) extends Phase
+        timestamp: Instant,
+        status: TaskStatus) extends Phase
   }
 }
 
@@ -148,7 +148,7 @@ object SchedulerLogic {
     }
   }
 
-  def eventProcesorFlow(clock: Clock): Flow[SchedulerLogicInputEvent, Effect, NotUsed] =
+  def eventProcesorFlow(clock: Clock = Clock.systemUTC()): Flow[SchedulerLogicInputEvent, Effect, NotUsed] =
     Flow[SchedulerLogicInputEvent].statefulMapConcat { () =>
       var frame = SchedulerFrame.empty
 

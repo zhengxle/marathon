@@ -21,7 +21,11 @@ class StateAuthorityTest extends AkkaUnitTestLike with Inside {
     When("I submit a command to add a task for a RunSpec that does not exist")
     input.offer(CommandRequest(
       requestId,
-      StateCommand.AddInstance(Instance(instanceId, RunSpecRef("/lol", "blue")))))
+      StateCommand.AddInstance(Instance(
+        instanceId,
+        RunSpecRef("/lol", "blue"),
+        incarnation = 1L,
+        goal = Instance.Goal.Running))))
 
     And("the failure gets published")
     inside(result.pull().futureValue) {

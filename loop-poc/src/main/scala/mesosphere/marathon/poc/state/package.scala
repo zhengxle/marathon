@@ -22,10 +22,10 @@ package state {
   }
 
   case class Instance(
-    instanceId: UUID,
-    runSpec: RunSpecRef,
-    incarnation: Long,
-    goal: Instance.Goal
+      instanceId: UUID,
+      runSpec: RunSpecRef,
+      incarnation: Long,
+      goal: Instance.Goal
   )
 
   object Instance {

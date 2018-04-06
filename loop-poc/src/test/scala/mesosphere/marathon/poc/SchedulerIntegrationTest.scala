@@ -69,7 +69,7 @@ class SchedulerIntegrationTest extends AkkaUnitTest
         import GraphDSL.Implicits._
 
         val stateProcessorWithStorage = b.add(commandProcessorFlowWithStorage(FauxStorage.fauxStorageComponent))
-        val scheduler = b.add(SchedulerLogic.eventProcesorFlow)
+        val scheduler = b.add(SchedulerLogic.eventProcesorFlow())
 
         inputShape ~> stateProcessorWithStorage ~> getUpdates ~> scheduler
 
