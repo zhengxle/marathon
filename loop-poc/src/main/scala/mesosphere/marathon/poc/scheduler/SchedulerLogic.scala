@@ -10,6 +10,7 @@ import mesosphere.marathon.poc.repository.MarathonState
 import mesosphere.marathon.poc.state.Instance
 import org.apache.mesos.v1.mesos.{ Offer, TaskState, TaskStatus }
 import monocle.macros.syntax.lens._
+import monocle.function.At.at
 import scala.annotation.tailrec
 
 case class MesosTask(
@@ -58,7 +59,7 @@ object MesosTask {
         case TASK_STAGING | TASK_STARTING | TASK_RUNNING
           | TASK_UNREACHABLE | TASK_LOST | TASK_UNKNOWN =>
           Running(taskStatus)
-        case  TASK_KILLING =>
+        case TASK_KILLING =>
           Killing(timestamp, taskStatus)
         case TASK_FINISHED | TASK_FAILED | TASK_KILLED | TASK_ERROR | TASK_DROPPED | TASK_GONE | TASK_GONE_BY_OPERATOR =>
           Terminal(timestamp, taskStatus)
@@ -100,6 +101,7 @@ object SchedulerLogicInputEvent {
   case class MarathonStateUpdate(updates: Seq[StateTransition]) extends SchedulerLogicInputEvent
   case class MesosOffer(offer: Offer) extends SchedulerLogicInputEvent
   case class MesosTaskStatus(task: MesosTask) extends SchedulerLogicInputEvent
+  case class QueryFrame(requestId: UUID) extends SchedulerLogicInputEvent
 }
 
 case class SchedulerFrame(
@@ -131,6 +133,8 @@ object SchedulerLogic {
       */
     case class ExpungeTask(taskId: String) extends Effect
     case class BumpIncarnation(instanceId: UUID, incarnation: Long) extends Effect
+
+    case class EmitState(requestId: UUID, frame: SchedulerFrame) extends Effect
   }
 
   def computeEffect(marathonInstance: Option[Instance], mesosTask: Option[MesosTask]): Seq[Effect] = (marathonInstance, mesosTask) match {
@@ -186,7 +190,6 @@ object SchedulerLogic {
         case Effect.ExpungeTask(taskId) =>
           mesosState.lens(_.tasks).modify { _ - taskId }
         case Effect.KillTask(taskId, _) =>
-          import monocle.function.At.at
           mesosState.lens(_.tasks).composeLens(at(taskId)).modify {
             case Some(task) =>
               task.phase match {
@@ -211,6 +214,17 @@ object SchedulerLogic {
       { inputEvent =>
 
         val effects = inputEvent match {
+          case SchedulerLogicInputEvent.MesosTaskStatus(task) =>
+            frame = frame.lens(_.mesosState.tasks).modify(_.updated(task.taskId, task))
+            Nil
+
+          case SchedulerLogicInputEvent.MesosOffer(offer) =>
+            // match offers for pending tasks
+            ???
+
+          case SchedulerLogicInputEvent.QueryFrame(requestId) =>
+            Seq(Effect.EmitState(requestId, frame))
+
           case SchedulerLogicInputEvent.MarathonStateUpdate(updates) =>
             val nextMarathonState = StateTransition.applyTransitions(frame.state, updates)
             val effects = computeEffects(nextMarathonState, frame.mesosState, StateTransition.affectedInstanceIds(updates))

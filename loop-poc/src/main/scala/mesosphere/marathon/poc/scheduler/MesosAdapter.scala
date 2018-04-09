@@ -14,9 +14,9 @@ import scala.concurrent.duration._
 
 object MesosAdapter extends StrictLogging {
   // Could also manage subscriptions
-  def offerReviver(calls: MesosCalls) = Flow[SchedulerLogic.MesosEffect].
+  def offerReviver(calls: MesosCalls, reviveRate: FiniteDuration = 5.seconds) = Flow[SchedulerLogic.MesosEffect].
     collect { case e: SchedulerLogic.Effect.WantOffers => e }.
-    groupedWithin(Int.MaxValue, 5.seconds)
+    groupedWithin(Int.MaxValue, reviveRate)
     .mapConcat { offersWanted =>
       if (offersWanted.isEmpty)
         Nil
@@ -58,7 +58,7 @@ object MesosAdapter extends StrictLogging {
     * Given a mesosClient, return a flow which wires up SchedulerLogic and sends the appropriate Mesos calls, and then
     * reads the updates from the mesosClient and maps to the appropriate SchedulerLogicInputEvent
     */
-  def graph(client: MesosClient): Flow[SchedulerLogic.MesosEffect, SchedulerLogicInputEvent, Future[Done]] = {
+  def graph(client: MesosClient, reviveRate: FiniteDuration = 5.seconds): Flow[SchedulerLogic.MesosEffect, SchedulerLogicInputEvent, Future[Done]] = {
     Flow.fromGraph {
       GraphDSL.create(client.mesosSink, client.mesosSource)((done, _) => done) { implicit b =>
         { (eventPublisher, events) =>
@@ -70,7 +70,7 @@ object MesosAdapter extends StrictLogging {
           val mesosCallFanin = b.add(Merge[Call](2))
 
           schedulerEffects ~> mesosCallBroadcast
-          mesosCallBroadcast ~> offerReviver(client.calls) ~> mesosCallFanin
+          mesosCallBroadcast ~> offerReviver(client.calls, reviveRate) ~> mesosCallFanin
           mesosCallBroadcast ~> eventResponder(client.calls) ~> mesosCallFanin
 
           mesosCallFanin ~> eventPublisher
