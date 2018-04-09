@@ -5,28 +5,26 @@ Marathon is a production-proven [Apache Mesos][Mesos] framework for container or
 Marathon provides a
 [REST API](https://mesosphere.github.io/marathon/docs/rest-api.html) for
 starting, stopping, and scaling applications. Marathon is written in Scala and
-can run in highly-available mode by running multiple copies. The
+can run in highly-available mode by running multiple master. The
 state of running tasks gets stored in the Mesos state abstraction.
 
-Marathon is a *meta framework*: you can start other Mesos frameworks such as
+Marathon is also used as a *meta framework*: you can start other Mesos frameworks such as
 Chronos or [Storm][Storm] with it to ensure they survive machine failures.
 It can launch anything that can be launched in a standard shell. In fact, you
 can even start other Marathon instances via Marathon.
 
-Since Marathon version 0.7.0 and Mesos 0.20.0, you can [deploy, run and scale Docker containers](https://mesosphere.github.io/marathon/docs/native-docker.html) easily with native support.
-
 ## Features
 
-* *HA* -- run any number of Marathon schedulers, but only one gets elected as
+* *HA* - run any number of Marathon schedulers, but only one gets elected as
     leader; if you access a non-leader, your request gets proxied to the
-    current leader
+    current leader.
 * *[Constraints](https://mesosphere.github.io/marathon/docs/constraints.html)* - e.g., only one instance of an application per rack, node, etc.
 * *[Service Discovery &amp; Load Balancing](https://mesosphere.github.io/marathon/docs/service-discovery-load-balancing.html)* via HAProxy or the events API (see below).
 * *[Health Checks](https://mesosphere.github.io/marathon/docs/health-checks.html)*: check your application's health via HTTP or TCP checks.
 * *[Event Subscription](https://mesosphere.github.io/marathon/docs/rest-api.html#event-subscriptions)* lets you supply an HTTP endpoint to receive notifications, for example to integrate with an external load balancer.
 * *[Marathon UI](https://mesosphere.github.io/marathon/docs/marathon-ui.html)*
 * *[JSON/REST API](https://mesosphere.github.io/marathon/docs/rest-api.html)* for easy integration and scriptability
-* *Basic Auth* and *SSL*
+* *[Basic Auth* and *SSL](http://mesosphere.github.io/marathon/docs/ssl-basic-access-authentication.html)*
 * *[Metrics](https://mesosphere.github.io/marathon/docs/metrics.html)*:
   query them at `/metrics` in JSON format or push them to graphite/statsd/datadog.
 
