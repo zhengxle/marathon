@@ -15,6 +15,7 @@ import mesosphere.marathon.core.launchqueue.LaunchQueue
 import mesosphere.marathon.core.readiness.{ ReadinessCheckExecutor, ReadinessCheckResult }
 import mesosphere.marathon.core.task.termination.KillService
 import mesosphere.marathon.core.task.tracker.InstanceTracker
+import mesosphere.marathon.state.Timestamp
 import mesosphere.marathon.storage.repository.DeploymentRepository
 
 import scala.async.Async.{ async, await }
@@ -149,6 +150,7 @@ class DeploymentManagerActor(
     case DeploymentFinished(plan, result) =>
       runningDeployments.remove(plan.id).foreach { deploymentInfo =>
         logger.info(s"Removing ${plan.id} for ${plan.targetIdsString} from list of running deployments")
+        logger.info(s">>> DeploymentFinished for ${plan.affectedRunSpecIds.head} in ${plan.version.until(Timestamp.now())}")
         deploymentStatus -= plan.id
         deploymentRepository.delete(plan.id)
         deploymentInfo.promise.complete(result)
