@@ -51,10 +51,10 @@ private[launchqueue] object TaskLauncherActor {
   sealed trait Requests
 
   /**
-    * Increase the instance count of the receiver.
+    * Triggers a sync with the instance tracker.
     * The actor responds with a [[QueuedInstanceInfo]] message.
     */
-  case class AddInstances(spec: RunSpec, count: Int) extends Requests
+  case object Sync extends Requests
   /**
     * Get the current count.
     * The actor responds with a [[QueuedInstanceInfo]] message.
@@ -147,6 +147,7 @@ private class TaskLauncherActor(
   private[this] def active: Receive = LoggingReceive.withLabel("active") {
     Seq(
       receiveStop,
+      receiveSync,
       receiveDelayUpdate,
       receiveGetCurrentCount,
       receiveProcessOffers,
@@ -155,6 +156,8 @@ private class TaskLauncherActor(
   }
 
   private[this] def receiveUnknown: Receive = {
+    case _: InstanceUpdated =>
+      instanceMap = instanceTracker.instancesBySpecSync.instancesMap(runSpec.id).instanceMap
     case msg: Any =>
       // fail fast and do not let the sender time out
       sender() ! Status.Failure(new IllegalStateException(s"Unhandled message: $msg"))
@@ -170,6 +173,12 @@ private class TaskLauncherActor(
         )
       }
       context.stop(self)
+  }
+
+  private[this] def receiveSync: Receive = {
+    case TaskLauncherActor.Sync =>
+      instanceMap = instanceTracker.instancesBySpecSync.instancesMap(runSpec.id).instanceMap
+      replyWithQueuedInstanceCount()
   }
 
   /**
@@ -206,6 +215,7 @@ private class TaskLauncherActor(
 
   private[this] def receiveGetCurrentCount: Receive = {
     case TaskLauncherActor.GetCount =>
+      instanceMap = instanceTracker.instancesBySpecSync.instancesMap(runSpec.id).instanceMap
       replyWithQueuedInstanceCount()
   }
 
@@ -252,6 +262,8 @@ private class TaskLauncherActor(
       instanceOpFactory.matchOfferRequest(matchRequest) match {
         case matched: OfferMatchResult.Match =>
           logger.debug(s"Matched offer ${offer.getId} for run spec ${runSpec.id}, ${runSpec.version}.")
+          // TODO(karsten): Mark instance as provisioned
+          //instanceTracker.updateStatus(..., Provisioned)
           offerMatchStatisticsActor ! matched
           handleInstanceOp(matched.instanceOp, offer, promise)
         case notMatched: OfferMatchResult.NoMatch =>

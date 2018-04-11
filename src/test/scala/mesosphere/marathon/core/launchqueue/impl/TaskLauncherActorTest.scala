@@ -121,7 +121,7 @@ class TaskLauncherActorTest extends AkkaUnitTest {
 
       When("upgrading the app")
       val upgradedApp = f.app.copy(cmd = Some("new command"))
-      launcherRef ! TaskLauncherActor.AddInstances(upgradedApp, 1)
+      launcherRef ! TaskLauncherActor.Sync
 
       Then("the actor requeries the backoff delay")
       rateLimiterActor.expectMsg(RateLimiterActor.GetDelay(upgradedApp))
@@ -157,7 +157,7 @@ class TaskLauncherActorTest extends AkkaUnitTest {
 
       When("upgrading the app")
       val upgradedApp = f.app.copy(cmd = Some("new command"))
-      launcherRef ! TaskLauncherActor.AddInstances(upgradedApp, 1)
+      launcherRef ! TaskLauncherActor.Sync
       rateLimiterActor.expectMsg(RateLimiterActor.GetDelay(upgradedApp))
       rateLimiterActor.reply(RateLimiterActor.DelayUpdate(upgradedApp, clock.now()))
 

@@ -7,7 +7,8 @@ import com.fasterxml.uuid.{ EthernetAddress, Generators }
 import mesosphere.marathon.core.condition.Condition
 import mesosphere.marathon.core.instance.Instance.{ AgentInfo, InstanceState }
 import mesosphere.marathon.core.task.Task
-import mesosphere.marathon.state.{ MarathonState, PathId, Timestamp, UnreachableDisabled, UnreachableEnabled, UnreachableStrategy }
+import mesosphere.marathon.core.task.state.NetworkInfo
+import mesosphere.marathon.state._
 import mesosphere.marathon.tasks.OfferUtil
 import mesosphere.marathon.stream.Implicits._
 import mesosphere.mesos.Placed
@@ -82,18 +83,21 @@ object Instance {
 
   import mesosphere.marathon.api.v2.json.Formats.TimestampFormat
 
-  def scheduled(runSpecId: PathId, runSpecVersion: Timestamp): Instance = {
+  def scheduled(runSpec: RunSpec): Instance = {
+    val instanceId = Id.forRunSpec(runSpec.id)
+    val phonyNetworkInfo = NetworkInfo("localhost", Seq.empty, Seq.empty)
+    val phonyTaskStatus = Task.Status(Timestamp.now(), None, None, Condition.Provisioned, phonyNetworkInfo)
+    val phonyTask = Task(Task.Id.forInstanceId(instanceId, None), runSpec.version, phonyTaskStatus)
     Instance(
-      Id.forRunSpec(runSpecId),
-      null,
+      instanceId,
+      new AgentInfo("localhost", None, None, None, Seq.empty),
       InstanceState(Condition.Scheduled, Timestamp.now(), None, None),
-      Map.empty,
-      runSpecVersion,
-      null,
+      Map(phonyTask.taskId -> phonyTask),
+      runSpec.version,
+      runSpec.unreachableStrategy,
       None
     )
   }
-
 
   def instancesById(instances: Seq[Instance]): Map[Instance.Id, Instance] =
     instances.map(instance => instance.instanceId -> instance)(collection.breakOut)

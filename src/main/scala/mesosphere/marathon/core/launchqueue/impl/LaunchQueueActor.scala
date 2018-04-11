@@ -182,20 +182,11 @@ private[impl] class LaunchQueueActor(
       }
 
     case Add(app, count) =>
-      launchers.get(app.id) match {
-        case None =>
-          import context.dispatcher
-          val actorRef = createAppTaskLauncher(app, count)
-          val eventualCount: Future[QueuedInstanceInfo] =
-            (actorRef ? TaskLauncherActor.GetCount).mapTo[QueuedInstanceInfo]
-          eventualCount.map(_ => Done).pipeTo(sender())
-
-        case Some(actorRef) =>
-          import context.dispatcher
-          val eventualCount: Future[QueuedInstanceInfo] =
-            (actorRef ? TaskLauncherActor.AddInstances(app, count)).mapTo[QueuedInstanceInfo]
-          eventualCount.map(_ => Done).pipeTo(sender())
-      }
+      import context.dispatcher
+      val actorRef = launchers.get(app.id).getOrElse(createAppTaskLauncher(app, count))
+      val eventualCount: Future[QueuedInstanceInfo] =
+        (actorRef ? TaskLauncherActor.Sync).mapTo[QueuedInstanceInfo]
+      eventualCount.map(_ => Done).pipeTo(sender())
 
     case msg @ RateLimiterActor.DelayUpdate(app, _) =>
       launchers.get(app.id).foreach(_.forward(msg))
