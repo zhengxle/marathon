@@ -3,17 +3,18 @@ package core.deployment.impl
 
 import akka.Done
 import akka.pattern._
-import akka.actor.{ Actor, ActorRef, Props }
+import akka.actor.{Actor, ActorRef, Props}
 import akka.event.EventStream
 import com.typesafe.scalalogging.StrictLogging
 import mesosphere.marathon.core.event.DeploymentStatus
+import mesosphere.marathon.core.instance.Instance
 import mesosphere.marathon.core.launchqueue.LaunchQueue
 import mesosphere.marathon.core.readiness.ReadinessCheckExecutor
 import mesosphere.marathon.core.task.tracker.InstanceTracker
 import mesosphere.marathon.state.RunSpec
 
-import scala.async.Async.{ async, await }
-import scala.concurrent.{ Future, Promise }
+import scala.async.Async.{async, await}
+import scala.concurrent.{Future, Promise}
 import scala.concurrent.ExecutionContext.Implicits.global
 
 @SuppressWarnings(Array("all")) // async/await
@@ -40,8 +41,12 @@ class TaskStartActor(
   @SuppressWarnings(Array("all")) // async/await
   override def initializeStart(): Future[Done] = async {
     val toStart = await(nrToStart)
-    if (toStart > 0) await(launchQueue.addAsync(runSpec, toStart))
-    else Done
+    val startInstances: Iterable[Future[Done]]  = 0.until(toStart).toIterable.map { _ =>
+      val newInstance: Instance = Instance.scheduled(runSpec.id, runSpec.version)
+      instanceTracker.launchEphemeral(newInstance)
+    }
+    await(Future.sequence(startInstances))
+    Done
   }.pipeTo(self)
 
   override def postStop(): Unit = {

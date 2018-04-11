@@ -82,6 +82,19 @@ object Instance {
 
   import mesosphere.marathon.api.v2.json.Formats.TimestampFormat
 
+  def scheduled(runSpecId: PathId, runSpecVersion: Timestamp): Instance = {
+    Instance(
+      Id.forRunSpec(runSpecId),
+      null,
+      InstanceState(Condition.Scheduled, Timestamp.now(), None, None),
+      Map.empty,
+      runSpecVersion,
+      null,
+      None
+    )
+  }
+
+
   def instancesById(instances: Seq[Instance]): Map[Instance.Id, Instance] =
     instances.map(instance => instance.instanceId -> instance)(collection.breakOut)
 

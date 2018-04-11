@@ -1,12 +1,15 @@
 package mesosphere.marathon
 package core.task.tracker
 
+import akka.Done
 import com.typesafe.scalalogging.StrictLogging
 import mesosphere.marathon.core.instance.Instance
+import mesosphere.marathon.core.instance.update.{InstanceUpdateEffect, InstanceUpdateOperation}
 import mesosphere.marathon.core.task.Task
-import mesosphere.marathon.state.PathId
+import mesosphere.marathon.state.{PathId, Timestamp}
+import org.apache.mesos
 
-import scala.concurrent.{ ExecutionContext, Future }
+import scala.concurrent.{ExecutionContext, Future}
 
 /**
   * The TaskTracker exposes the latest known state for every task.
@@ -32,6 +35,19 @@ trait InstanceTracker {
 
   def hasSpecInstancesSync(appId: PathId): Boolean
   def hasSpecInstances(appId: PathId)(implicit ec: ExecutionContext): Future[Boolean]
+
+  /** Process an InstanceUpdateOperation and propagate its result. */
+  def process(stateOp: InstanceUpdateOperation): Future[InstanceUpdateEffect]
+
+  def launchEphemeral(instance: Instance): Future[Done]
+
+  def revert(instance: Instance): Future[Done]
+
+  def forceExpunge(instanceId: Instance.Id): Future[Done]
+
+  def updateStatus(instance: Instance, mesosStatus: mesos.Protos.TaskStatus, updateTime: Timestamp): Future[Done]
+
+  def updateReservationTimeout(instanceId: Instance.Id): Future[Done]
 }
 
 object InstanceTracker {
