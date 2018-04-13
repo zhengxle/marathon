@@ -96,21 +96,25 @@ class InstanceOpFactoryImpl(
   }
 
   private[this] def inferNormalTaskOp(app: AppDefinition, request: InstanceOpFactory.Request): OfferMatchResult = {
-    val InstanceOpFactory.Request(runSpec, offer, instances, _, localRegion) = request
+    val InstanceOpFactory.Request(_, offer, instances, _, localRegion) = request
 
     val matchResponse =
       RunSpecOfferMatcher.matchOffer(app, offer, instances.values.toIndexedSeq,
         config.defaultAcceptedResourceRolesSet, config, schedulerPlugins, localRegion)
     matchResponse match {
       case matches: ResourceMatchResponse.Match =>
-        val taskId = Task.Id.forRunSpec(app.id)
+        val scheduledInstance = request.scheduledInstances.head._2
+
+        val now = clock.now()
+
+        val taskId = Task.Id.forInstanceId(scheduledInstance.instanceId, None)
         val taskBuilder = new TaskBuilder(app, taskId, config, runSpecTaskProc)
         val (taskInfo, networkInfo) = taskBuilder.build(request.offer, matches.resourceMatch, None)
         val task = Task(
-          taskId = Task.Id(taskInfo.getTaskId),
-          runSpecVersion = runSpec.version,
+          taskId = taskId,
+          runSpecVersion = app.version,
           status = Task.Status(
-            stagedAt = clock.now(),
+            stagedAt = now,
             condition = Condition.Created,
             networkInfo = networkInfo
           )
@@ -118,6 +122,11 @@ class InstanceOpFactoryImpl(
 
         val agentInfo = AgentInfo(offer)
         val instance = LegacyAppInstance(task, agentInfo, app.unreachableStrategy)
+
+        val tasksMap = Map(task.taskId -> task)
+        val state = Instance.InstanceState(Condition.Provisioned, now, None, None)
+        val provisionedInstance = new Instance(scheduledInstance.instanceId, agentInfo, state, tasksMap, app.version, app.unreachableStrategy, None)
+
         val instanceOp = taskOperationFactory.launchEphemeral(taskInfo, task, instance)
         OfferMatchResult.Match(app, request.offer, instanceOp, clock.now())
       case matchesNot: ResourceMatchResponse.NoMatch => OfferMatchResult.NoMatch(app, request.offer, matchesNot.reasons, clock.now())
@@ -128,7 +137,7 @@ class InstanceOpFactoryImpl(
     val InstanceOpFactory.Request(runSpec, offer, instances, additionalLaunches, localRegion) = request
 
     val needToLaunch = additionalLaunches > 0 && request.hasWaitingReservations
-    val needToReserve = request.numberOfWaitingReservations < additionalLaunches
+    val needToReserve = request.numberOfWaitingReservations < request.scheduledInstances.size
 
     /* *
      * If an offer HAS reservations/volumes that match our run spec, handling these has precedence
