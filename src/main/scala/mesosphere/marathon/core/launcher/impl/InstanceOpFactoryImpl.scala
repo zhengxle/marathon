@@ -9,6 +9,7 @@ import mesosphere.marathon.core.instance.Instance.{ AgentInfo, InstanceState }
 import mesosphere.marathon.core.instance.update.InstanceUpdateOperation
 import mesosphere.marathon.core.instance.{ Instance, LegacyAppInstance, LocalVolume, LocalVolumeId, Reservation }
 import mesosphere.marathon.core.launcher.{ InstanceOp, InstanceOpFactory, OfferMatchResult }
+import mesosphere.marathon.core.matcher.base.util.OfferOperationFactory
 import mesosphere.marathon.core.plugin.PluginManager
 import mesosphere.marathon.core.pod.PodDefinition
 import mesosphere.marathon.core.task.Task
@@ -38,6 +39,12 @@ class InstanceOpFactoryImpl(
     val roleOpt = config.mesosRole.get
 
     new InstanceOpFactoryHelper(principalOpt, roleOpt)
+  }
+  private[this] val offerOperationFactory = {
+    val principalOpt = config.mesosAuthenticationPrincipal.get
+    val roleOpt = config.mesosRole.get
+
+    new OfferOperationFactory(principalOpt, roleOpt)
   }
 
   private[this] val schedulerPlugins: Seq[SchedulerPlugin] = pluginManager.plugins[SchedulerPlugin]
@@ -127,16 +134,19 @@ class InstanceOpFactoryImpl(
         val state = Instance.InstanceState(Condition.Provisioned, now, None, None)
         val provisionedInstance = new Instance(scheduledInstance.instanceId, agentInfo, state, tasksMap, app.version, app.unreachableStrategy, None)
 
-        val instanceOp = taskOperationFactory.launchEphemeral(taskInfo, task, instance)
+        def createOperations = Seq(offerOperationFactory.launch(taskInfo))
+        val phonyMesosStatus = Mesos.TaskStatus.newBuilder().build()
+        val stateOp = InstanceUpdateOperation.MesosUpdate(instance, Condition.Provisioned, phonyMesosStatus, clock.now())
+        val instanceOp = InstanceOp.LaunchTask(taskInfo, stateOp, oldInstance = None, createOperations)
         OfferMatchResult.Match(app, request.offer, instanceOp, clock.now())
       case matchesNot: ResourceMatchResponse.NoMatch => OfferMatchResult.NoMatch(app, request.offer, matchesNot.reasons, clock.now())
     }
   }
 
   private[this] def inferForResidents(spec: RunSpec, request: InstanceOpFactory.Request): OfferMatchResult = {
-    val InstanceOpFactory.Request(runSpec, offer, instances, additionalLaunches, localRegion) = request
+    val InstanceOpFactory.Request(runSpec, offer, instances, scheduledInstances, localRegion) = request
 
-    val needToLaunch = additionalLaunches > 0 && request.hasWaitingReservations
+    val needToLaunch = scheduledInstances.size > 0 && request.hasWaitingReservations
     val needToReserve = request.numberOfWaitingReservations < request.scheduledInstances.size
 
     /* *

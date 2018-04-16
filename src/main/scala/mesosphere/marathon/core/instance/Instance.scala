@@ -86,7 +86,7 @@ object Instance {
   def scheduled(runSpec: RunSpec): Instance = {
     val instanceId = Id.forRunSpec(runSpec.id)
     val phonyNetworkInfo = NetworkInfo("localhost", Seq.empty, Seq.empty)
-    val phonyTaskStatus = Task.Status(Timestamp.now(), None, None, Condition.Provisioned, phonyNetworkInfo)
+    val phonyTaskStatus = Task.Status(Timestamp.now(), None, None, Condition.Scheduled, phonyNetworkInfo)
     val phonyTask = Task(Task.Id.forInstanceId(instanceId, None), runSpec.version, phonyTaskStatus)
     Instance(
       instanceId,
