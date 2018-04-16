@@ -135,7 +135,10 @@ class InstanceOpFactoryImpl(
         val provisionedInstance = new Instance(scheduledInstance.instanceId, agentInfo, state, tasksMap, app.version, app.unreachableStrategy, None)
 
         def createOperations = Seq(offerOperationFactory.launch(taskInfo))
-        val phonyMesosStatus = Mesos.TaskStatus.newBuilder().build()
+        val phonyMesosStatus = Mesos.TaskStatus.newBuilder()
+          .setTaskId(taskInfo.getTaskId)
+          .setState(Mesos.TaskState.TASK_STAGING)
+          .build()
         val stateOp = InstanceUpdateOperation.MesosUpdate(instance, Condition.Provisioned, phonyMesosStatus, clock.now())
         val instanceOp = InstanceOp.LaunchTask(taskInfo, stateOp, oldInstance = None, createOperations)
         OfferMatchResult.Match(app, request.offer, instanceOp, clock.now())
