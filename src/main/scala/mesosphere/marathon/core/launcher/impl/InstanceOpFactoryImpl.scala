@@ -128,7 +128,6 @@ class InstanceOpFactoryImpl(
         )
 
         val agentInfo = AgentInfo(offer)
-        val instance = LegacyAppInstance(task, agentInfo, app.unreachableStrategy)
 
         val tasksMap = Map(task.taskId -> task)
         val state = Instance.InstanceState(Condition.Provisioned, now, None, None)
@@ -139,7 +138,7 @@ class InstanceOpFactoryImpl(
           .setTaskId(taskInfo.getTaskId)
           .setState(Mesos.TaskState.TASK_STAGING)
           .build()
-        val stateOp = InstanceUpdateOperation.MesosUpdate(instance, Condition.Provisioned, phonyMesosStatus, clock.now())
+        val stateOp = InstanceUpdateOperation.MesosUpdate(provisionedInstance, Condition.Provisioned, phonyMesosStatus, clock.now())
         val instanceOp = InstanceOp.LaunchTask(taskInfo, stateOp, oldInstance = None, createOperations)
         OfferMatchResult.Match(app, request.offer, instanceOp, clock.now())
       case matchesNot: ResourceMatchResponse.NoMatch => OfferMatchResult.NoMatch(app, request.offer, matchesNot.reasons, clock.now())

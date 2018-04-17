@@ -9,7 +9,7 @@ import akka.event.LoggingReceive
 import com.typesafe.scalalogging.StrictLogging
 import mesosphere.marathon.core.flow.OfferReviver
 import mesosphere.marathon.core.instance.Instance
-import mesosphere.marathon.core.instance.update.{ InstanceChange, InstanceDeleted, InstanceUpdated }
+import mesosphere.marathon.core.instance.update.{ InstanceChange, InstanceDeleted, InstanceUpdateOperation, InstanceUpdated }
 import mesosphere.marathon.core.launcher.{ InstanceOp, InstanceOpFactory, OfferMatchResult }
 import mesosphere.marathon.core.launchqueue.LaunchQueue.QueuedInstanceInfo
 import mesosphere.marathon.core.launchqueue.LaunchQueueConfig
@@ -282,6 +282,10 @@ private class TaskLauncherActor(
     * @param promise Promise that tells offer matcher that the offer has been accepted.
     */
   private[this] def handleInstanceOp(instanceOp: InstanceOp, offer: Mesos.Offer, promise: Promise[MatchedInstanceOps]): Unit = {
+
+    // Mark instance in internal map as provisioned
+    instanceMap += instanceOp.instanceId -> instanceOp.stateOp.asInstanceOf[InstanceUpdateOperation.MesosUpdate].instance
+
     OfferMatcherRegistration.manageOfferMatcherStatus()
 
     logger.debug(s"Request ${instanceOp.getClass.getSimpleName} for instance '${instanceOp.instanceId.idString}', version '${runSpec.version}'. $status")
