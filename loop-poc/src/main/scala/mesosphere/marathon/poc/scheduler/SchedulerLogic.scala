@@ -131,80 +131,95 @@ object SchedulerLogic {
     /**
       * Indicate that the task is to be forgotten.
       */
-    case class ExpungeTask(taskId: String) extends Effect
+    case class TaskUpdate(taskId: String, newState: Option[MesosTask]) extends Effect
     case class BumpIncarnation(instanceId: UUID, incarnation: Long) extends Effect
 
     case class EmitState(requestId: UUID, frame: SchedulerFrame) extends Effect
   }
 
-  def computeEffect(marathonInstance: Option[Instance], mesosTask: Option[MesosTask]): Seq[Effect] = (marathonInstance, mesosTask) match {
-    case (Some(instance), None) =>
-      Seq(Effect.WantOffers(instance.instanceId))
-    case (Some(instance), Some(task)) if task.incarnation < instance.incarnation =>
-      if (MesosTask.considerRunning(task.phase))
-        Seq(Effect.KillTask(task.taskId, Some(task.agentId)))
-      else
-        Seq(
-          Effect.KillTask(task.taskId, Some(task.agentId)),
-          Effect.ExpungeTask(task.taskId))
-    case (None, Some(task)) =>
-      if (MesosTask.considerRunning(task.phase))
-        Seq(
-          Effect.KillTask(task.taskId, Some(task.agentId)),
-          Effect.ExpungeTask(task.taskId))
-      else
-        Nil
-    case (Some(instance), Some(task)) if task.incarnation == instance.incarnation =>
-      (instance.goal, MesosTask.considerRunning(task.phase)) match {
-        case (Instance.Goal.Running, true) =>
-          Nil // notify orchestrator ?
-        case (Instance.Goal.Running, false) =>
-          // ... via orchestrator? will potentially need to rate-limit launches
-          Seq(Effect.BumpIncarnation(instance.instanceId, instance.incarnation + 1))
-        case (Instance.Goal.Stopped, true) =>
-          Seq(Effect.KillTask(task.taskId, Some(task.agentId)))
-        case (Instance.Goal.Stopped, false) =>
-          Nil // notify orchestrator?
+  def computeEffect(marathonInstance: Option[Instance], mesosTask: Option[MesosTask])(clock: Clock): Seq[Effect] = {
+    def killExpunge(taskId: String, agentId: Option[String]): List[Effect] =
+      List(
+        Effect.KillTask(taskId, agentId),
+        Effect.TaskUpdate(taskId, None))
+
+    /**
+      * Returns effects to kill a task and update the status to with a provisionally killing status
+      *
+      *
+      */
+    def kill(task: MesosTask): List[Effect] =
+      task.phase match {
+        case MesosTask.Phase.Running(status) =>
+          List(
+            Effect.KillTask(task.taskId, Some(task.agentId)),
+            Effect.TaskUpdate(
+              task.taskId,
+              Some(task.copy(phase = MesosTask.Phase.Killing(clock.instant(), status)))))
+        case other =>
+          killExpunge(task.taskId, Some(task.agentId))
       }
-    case (Some(instance), Some(task)) if task.incarnation > instance.incarnation =>
-      /* We should never get here. */
 
-      if (MesosTask.considerRunning(task.phase))
-        Seq(
-          Effect.KillTask(task.taskId, Some(task.agentId)),
-          Effect.ExpungeTask(task.taskId),
-          Effect.BumpIncarnation(instance.instanceId, task.incarnation + 1))
-      else
-        Nil
+    (marathonInstance, mesosTask) match {
+      case (Some(instance), None) =>
+        Seq(Effect.WantOffers(instance.instanceId))
+      case (Some(instance), Some(task)) if task.incarnation < instance.incarnation =>
+        kill(task)
+      case (None, Some(task)) =>
+        kill(task)
+      case (Some(instance), Some(task)) if task.incarnation == instance.incarnation =>
+        (instance.goal, MesosTask.considerRunning(task.phase)) match {
+          case (Instance.Goal.Running, true) =>
+            Nil
+          case (Instance.Goal.Running, false) =>
+            Seq(Effect.BumpIncarnation(instance.instanceId, instance.incarnation + 1))
+          case (Instance.Goal.Stopped, true) =>
+            kill(task)
+          case (Instance.Goal.Stopped, false) =>
+            Nil
+        }
+      case (Some(instance), Some(task)) if task.incarnation > instance.incarnation =>
+        /* We should never get here. */
+
+        if (MesosTask.considerRunning(task.phase))
+          Effect.BumpIncarnation(instance.instanceId, task.incarnation + 1) ::
+            killExpunge(task.taskId, Some(task.agentId))
+        else
+          Nil
+    }
   }
 
-  def computeEffects(marathonState: MarathonState, mesosState: MesosState, affectedInstances: Seq[UUID]): List[Effect] = {
+  def computeEffects(marathonState: MarathonState, mesosState: MesosState, affectedInstances: Seq[UUID])(clock: Clock): List[Effect] =
     affectedInstances.distinct.flatMap { instanceId =>
-      computeEffect(marathonState.instances.instances.get(instanceId), mesosState.tasks.get(instanceId.toString))
+      computeEffect(marathonState.instances.instances.get(instanceId), mesosState.tasks.get(instanceId.toString))(clock)
     }(collection.breakOut)
-  }
 
-  def applyEffectsToMesos(mesosState: MesosState, effects: List[Effect])(clock: Clock): MesosState =
-    effects.foldLeft(mesosState) { (mesosState, effect) =>
-      effect match {
-        case Effect.ExpungeTask(taskId) =>
-          mesosState.lens(_.tasks).modify { _ - taskId }
-        case Effect.KillTask(taskId, _) =>
-          mesosState.lens(_.tasks).composeLens(at(taskId)).modify {
-            case Some(task) =>
-              task.phase match {
-                case MesosTask.Phase.Running(status) =>
-                  Some(task.copy(phase = MesosTask.Phase.Killing(clock.instant(), status)))
-                case other =>
-                  throw new IllegalStateException(s"BUG! Tried to kill a non-running task, ${task}")
-              }
-            case None =>
-              throw new IllegalStateException(s"BUG! Tried to kill a non-existent task, ${taskId}")
-          }
-        case _ =>
-          mesosState
+  def applyTaskUpdates(mesosState: MesosState, effects: Seq[Effect.TaskUpdate]): MesosState = {
+    mesosState.lens(_.tasks).modify { tasks =>
+      effects.foldLeft(tasks) {
+        case (tasks, Effect.TaskUpdate(taskId, None)) =>
+          tasks - taskId
+        case (tasks, Effect.TaskUpdate(taskId, Some(task))) =>
+          tasks.updated(taskId, task)
       }
     }
+  }
+
+  def affectedInstanceIdsForTaskUpdates(tasks: Seq[Effect.TaskUpdate]): Seq[UUID] = {
+    tasks.flatMap { t =>
+      t.newState match {
+        case Some(t) => Some(t.instanceId)
+        case None =>
+          Instance.parseMesosTaskId(t.taskId) match {
+            case Some((name, instanceId, incarnation)) =>
+              Some(instanceId)
+            case None =>
+              None
+          }
+
+      }
+    }
+  }
 
   def eventProcesorFlow(clock: Clock = Clock.systemUTC()): Flow[SchedulerLogicInputEvent, Effect, NotUsed] =
     Flow[SchedulerLogicInputEvent].statefulMapConcat { () =>
@@ -215,8 +230,21 @@ object SchedulerLogic {
 
         val effects = inputEvent match {
           case SchedulerLogicInputEvent.MesosTaskStatus(task) =>
-            frame = frame.lens(_.mesosState.tasks).modify(_.updated(task.taskId, task))
-            Nil
+            val taskUpdates = if (frame.mesosState.tasks.get(task.taskId).contains(task)) {
+              Nil
+            } else {
+              Seq(Effect.TaskUpdate(task.taskId, Some(task)))
+            }
+
+            val mesosStateWithTaskUpdates = applyTaskUpdates(frame.mesosState, taskUpdates)
+
+            val effects = computeEffects(
+              frame.state, mesosStateWithTaskUpdates, affectedInstanceIdsForTaskUpdates(taskUpdates))(clock)
+
+            frame = frame.copy(
+              mesosState = applyTaskUpdates(frame.mesosState, effects.collect { case u: Effect.TaskUpdate => u }))
+
+            taskUpdates ++ effects
 
           case SchedulerLogicInputEvent.MesosOffer(offer) =>
             // match offers for pending tasks
@@ -227,9 +255,11 @@ object SchedulerLogic {
 
           case SchedulerLogicInputEvent.MarathonStateUpdate(updates) =>
             val nextMarathonState = StateTransition.applyTransitions(frame.state, updates)
-            val effects = computeEffects(nextMarathonState, frame.mesosState, StateTransition.affectedInstanceIds(updates))
-            val provisionalMesosState = applyEffectsToMesos(frame.mesosState, effects)(clock)
-            frame = frame.copy(nextMarathonState, provisionalMesosState)
+            val effects = computeEffects(nextMarathonState, frame.mesosState, StateTransition.affectedInstanceIds(updates))(clock)
+
+            frame = frame.copy(
+              state = nextMarathonState,
+              mesosState = applyTaskUpdates(frame.mesosState, effects.collect { case u: Effect.TaskUpdate => u }))
 
             effects
         }
