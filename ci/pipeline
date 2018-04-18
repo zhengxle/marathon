@@ -40,12 +40,12 @@ def compileAndTest(logFileName: String): Unit = utils.stage("Compile and Test") 
 
   run("sbt", "clean", "compile", "test:compile")
 
-  checkUnusedImports(logFileName)
+  //checkUnusedImports(logFileName)
 
   run("sbt", "test", "integration:test", "scapegoat")
 
   // Check leaked processes after integration tests
-  checkLeakedProcesses()
+  //checkLeakedProcesses()
 
   // Compile other projects.
   run("sbt", "benchmark/compile")
