@@ -54,6 +54,6 @@ target/%/cluster-stats.json: target/%/scratch/marathon-pods.json target/%/scratc
 	JAVA_OPTS=-Xmx2g bin/amm-2.11 cluster-state-stats.sc target/$*/scratch/  > $@.work
 	mv $@.work $@
 
-target/%/report.html: target/%/cluster-stats.json target/%/marathon-log-metrics.json | bin/amm-2.11
+target/%/report.html: target/%/cluster-stats.json target/%/marathon-log-metrics.json bin/amm-2.11
 	bin/amm-2.11 report.sc target/$*/marathon-log-metrics.json target/$*/cluster-stats.json > $@.work
 	mv $@.work $@

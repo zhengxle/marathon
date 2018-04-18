@@ -1,0 +1,27 @@
+#!/bin/bash
+
+SCRIPT_NAME="$0"
+
+usage() {
+  cat <<-EOF
+Usage: $SCRIPT_NAME [name] [path-to-bundle]
+EOF
+}
+
+case "$1" in
+  ""|-h|--help)
+    usage
+    exit 1
+esac
+
+TARGET="$1"
+BUNDLE="$2"
+if [ -z "$BUNDLE" ]; then
+  usage
+  exit 1
+fi
+
+ABS_BUNDLE="$(cd "$BUNDLE"; pwd)"
+
+mkdir -p target/$TARGET
+ln -sf "$ABS_BUNDLE" target/$TARGET/bundle

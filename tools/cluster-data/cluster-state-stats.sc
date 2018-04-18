@@ -11,9 +11,9 @@ import schema._
 
 case class AgentInfo(
   active: Boolean,
-  cpus: Double, mem: Long, disk: Long, gpus: Long,
-  availableCpus: Double, availableMem: Long, availableDisk: Long, availableGpus: Long,
-  unreservedCpus: Double, unreservedMem: Long, unreservedDisk: Long, unreservedGpus: Long)
+  cpus: Double, mem: Double, disk: Double, gpus: Double,
+  availableCpus: Double, availableMem: Double, availableDisk: Double, availableGpus: Double,
+  unreservedCpus: Double, unreservedMem: Double, unreservedDisk: Double, unreservedGpus: Double)
 
 
 
@@ -111,19 +111,19 @@ FROM mesos_agents
         unreserved = Summary.ofDouble(agentInfos.map(_.unreservedCpus))
       ),
       "mem" -> ResourceSummary(
-        total = Summary.ofLong(agentInfos.map(_.mem)),
-        available = Summary.ofLong(agentInfos.map(_.availableMem)),
-        unreserved = Summary.ofLong(agentInfos.map(_.unreservedMem))
+        total = Summary.ofDouble(agentInfos.map(_.mem)),
+        available = Summary.ofDouble(agentInfos.map(_.availableMem)),
+        unreserved = Summary.ofDouble(agentInfos.map(_.unreservedMem))
       ),
       "disk" -> ResourceSummary(
-        total = Summary.ofLong(agentInfos.map(_.disk)),
-        available = Summary.ofLong(agentInfos.map(_.availableDisk)),
-        unreserved = Summary.ofLong(agentInfos.map(_.unreservedDisk))
+        total = Summary.ofDouble(agentInfos.map(_.disk)),
+        available = Summary.ofDouble(agentInfos.map(_.availableDisk)),
+        unreserved = Summary.ofDouble(agentInfos.map(_.unreservedDisk))
       ),
       "gpus" -> ResourceSummary(
-        total = Summary.ofLong(agentInfos.map(_.gpus)),
-        available = Summary.ofLong(agentInfos.map(_.availableGpus)),
-        unreserved = Summary.ofLong(agentInfos.map(_.unreservedGpus))
+        total = Summary.ofDouble(agentInfos.map(_.gpus)),
+        available = Summary.ofDouble(agentInfos.map(_.availableGpus)),
+        unreserved = Summary.ofDouble(agentInfos.map(_.unreservedGpus))
       )
     ),
     versions = agentVersions
