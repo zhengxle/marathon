@@ -17,6 +17,7 @@ import mesosphere.marathon.core.task.termination.{ KillReason, KillService }
 import mesosphere.marathon.core.task.tracker.InstanceTracker
 import mesosphere.marathon.state.RunSpec
 
+import scala.async.Async.{ async, await }
 import scala.collection.{ SortedSet, mutable }
 import scala.concurrent.{ Future, Promise }
 
@@ -131,18 +132,27 @@ class TaskReplaceActor(
 
   // Careful not to make this method completely asynchronous - it changes local actor's state `instancesStarted`.
   // Only launching new instances needs to be asynchronous.
-  def launchInstances(): Future[Done] = {
+  def launchInstances(): Future[Done] = async {
     val leftCapacity = math.max(0, ignitionStrategy.maxCapacity - oldInstanceIds.size - instancesStarted)
     val instancesNotStartedYet = math.max(0, runSpec.instances - instancesStarted)
     val instancesToStartNow = math.min(instancesNotStartedYet, leftCapacity)
+
     if (instancesToStartNow > 0) {
+      val startInstances: Iterable[Future[Done]] = 0.until(instancesToStartNow).toIterable.map { _ =>
+        val newInstance: Instance = Instance.scheduled(runSpec)
+        instanceTracker.launchEphemeral(newInstance)
+      }
+      await(Future.sequence(startInstances))
+      // Trigger TaskLaunchActor creation and sync with instance tracker.
+      await(launchQueue.addAsync(runSpec, 0))
+
       logger.info(s"Reconciling instances during app $pathId restart: queuing $instancesToStartNow new instances")
       instancesStarted += instancesToStartNow
-      launchQueue.addAsync(runSpec, instancesToStartNow).pipeTo(self)
+      Done
     } else {
-      Future.successful(Done)
+      Done
     }
-  }
+  }.pipeTo(self)
 
   def killNextOldInstance(maybeNewInstanceId: Option[Instance.Id] = None): Unit = {
     if (toKill.nonEmpty) {

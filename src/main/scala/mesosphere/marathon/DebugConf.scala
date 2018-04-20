@@ -56,7 +56,9 @@ class DebugModule(conf: DebugConf) extends AbstractModule {
     conf.logLevel.get.foreach { levelName =>
       val level = Level.toLevel(if ("fatal".equalsIgnoreCase(levelName)) "fatal" else levelName)
       LoggerFactory.getLogger(Logger.ROOT_LOGGER_NAME) match {
-        case l: ch.qos.logback.classic.Logger => l.setLevel(level)
+        case l: ch.qos.logback.classic.Logger =>
+          l.setLevel(level)
+          println(s"Set logging level to $level")
         case _ => println(s"WARNING: Could not set log level to $level!")
       }
     }

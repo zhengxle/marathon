@@ -156,8 +156,9 @@ private class TaskLauncherActor(
   }
 
   private[this] def receiveUnknown: Receive = {
-    case _: InstanceUpdated =>
+    case _: InstanceChange =>
       instanceMap = instanceTracker.instancesBySpecSync.instancesMap(runSpec.id).instanceMap
+      sender() ! Done
     case msg: Any =>
       // fail fast and do not let the sender time out
       sender() ! Status.Failure(new IllegalStateException(s"Unhandled message: $msg"))
