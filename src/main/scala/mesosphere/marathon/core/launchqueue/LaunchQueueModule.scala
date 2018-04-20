@@ -41,7 +41,7 @@ class LaunchQueueModule(
         rateLimiterActor,
         offerMatchStatisticsActor,
         localRegion)(runSpec, count)
-    val props = LaunchQueueActor.props(config, offerMatchStatisticsActor, runSpecActorProps)
+    val props = LaunchQueueActor.props(config, offerMatchStatisticsActor, taskTracker, runSpecActorProps)
     leadershipModule.startWhenLeader(props, "launchQueue")
   }
 

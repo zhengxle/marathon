@@ -7,7 +7,6 @@ import akka.actor.{ Actor, ActorRef, Props }
 import akka.event.EventStream
 import com.typesafe.scalalogging.StrictLogging
 import mesosphere.marathon.core.event.DeploymentStatus
-import mesosphere.marathon.core.instance.Instance
 import mesosphere.marathon.core.launchqueue.LaunchQueue
 import mesosphere.marathon.core.readiness.ReadinessCheckExecutor
 import mesosphere.marathon.core.task.tracker.InstanceTracker
@@ -41,14 +40,8 @@ class TaskStartActor(
   @SuppressWarnings(Array("all")) // async/await
   override def initializeStart(): Future[Done] = async {
     val toStart = await(nrToStart)
-    val startInstances: Iterable[Future[Done]] = 0.until(toStart).toIterable.map { _ =>
-      val newInstance: Instance = Instance.scheduled(runSpec)
-      instanceTracker.launchEphemeral(newInstance)
-    }
-    await(Future.sequence(startInstances))
-    // Trigger TaskLaunchActor creation and sync with instance tracker.
-    await(launchQueue.addAsync(runSpec, 0))
-    Done
+    if (toStart > 0) await(launchQueue.addAsync(runSpec, toStart))
+    else Done
   }.pipeTo(self)
 
   override def postStop(): Unit = {
