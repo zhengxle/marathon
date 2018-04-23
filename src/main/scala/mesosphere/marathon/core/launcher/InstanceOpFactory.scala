@@ -1,7 +1,7 @@
 package mesosphere.marathon
 package core.launcher
 
-import mesosphere.marathon.core.instance.{ Instance, LocalVolume }
+import mesosphere.marathon.core.instance.{ Instance, LocalVolume, ScheduledInstance }
 import mesosphere.marathon.state.{ DiskSource, Region, RunSpec }
 import mesosphere.mesos.protos.ResourceProviderID
 import mesosphere.util.state.FrameworkId
@@ -34,7 +34,7 @@ object InstanceOpFactory {
       runSpec: RunSpec,
       offer: Mesos.Offer,
       instanceMap: Map[Instance.Id, Instance],
-      scheduledInstances: Map[Instance.Id, Instance],
+      scheduledInstances: Iterable[ScheduledInstance],
       localRegion: Option[Region] = None) {
 
     def frameworkId: FrameworkId = FrameworkId("").mergeFromProto(offer.getFrameworkId)

@@ -8,7 +8,7 @@ import akka.actor._
 import akka.event.LoggingReceive
 import com.typesafe.scalalogging.StrictLogging
 import mesosphere.marathon.core.flow.OfferReviver
-import mesosphere.marathon.core.instance.Instance
+import mesosphere.marathon.core.instance.{ Instance, ScheduledInstance }
 import mesosphere.marathon.core.instance.update.{ InstanceChange, InstanceDeleted, InstanceUpdateOperation, InstanceUpdated }
 import mesosphere.marathon.core.launcher.{ InstanceOp, InstanceOpFactory, OfferMatchResult }
 import mesosphere.marathon.core.launchqueue.LaunchQueue.QueuedInstanceInfo
@@ -98,7 +98,8 @@ private class TaskLauncherActor(
   /** instances that are in flight and those in the tracker */
   private[this] var instanceMap: Map[Instance.Id, Instance] = _
 
-  def instancesToLaunch = instanceMap.valuesIterator.count(_.isScheduled)
+  def scheduledInstances: Iterable[ScheduledInstance] = instanceMap.values.collect { case instance: ScheduledInstance => instance }
+  def instancesToLaunch = scheduledInstances.size
 
   /** Decorator to use this actor as a [[OfferMatcher#TaskOpSource]] */
   private[this] val myselfAsLaunchSource = InstanceOpSourceDelegate(self)
@@ -258,7 +259,6 @@ private class TaskLauncherActor(
 
       logger.debug(s"Matching offer ${offer.getId} and need to launch $instancesToLaunch tasks.")
       val reachableInstances = instanceMap.filterNotAs{ case (_, instance) => instance.state.condition.isLost }
-      val scheduledInstances = instanceMap.filter{ case (_, instance) => instance.isScheduled }
       val matchRequest = InstanceOpFactory.Request(runSpec, offer, reachableInstances, scheduledInstances, localRegion())
       instanceOpFactory.matchOfferRequest(matchRequest) match {
         case matched: OfferMatchResult.Match =>

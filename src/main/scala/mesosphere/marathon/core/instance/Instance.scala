@@ -78,26 +78,28 @@ case class Instance(
   override def region: Option[String] = agentInfo.region
 }
 
+class ScheduledInstance(val runSpec: RunSpec, instanceId: Instance.Id) extends Instance(
+  instanceId = instanceId,
+  agentInfo = new AgentInfo("localhost", None, None, None, Seq.empty),
+  state = InstanceState(Condition.Scheduled, Timestamp.now(), None, None),
+  tasksMap = {
+    val phonyNetworkInfo = NetworkInfo("localhost", Seq.empty, Seq.empty)
+    val phonyTaskStatus = Task.Status(Timestamp.now(), None, None, Condition.Scheduled, phonyNetworkInfo)
+    val phonyTask = Task(Task.Id.forInstanceId(instanceId, None), runSpec.version, phonyTaskStatus)
+    Map(phonyTask.taskId -> phonyTask)
+  },
+  runSpecVersion = runSpec.version,
+  unreachableStrategy = runSpec.unreachableStrategy,
+  reservation = None
+) {
+
+  lazy val app: AppDefinition = runSpec.asInstanceOf[AppDefinition]
+}
+
 @SuppressWarnings(Array("DuplicateImport"))
 object Instance {
 
   import mesosphere.marathon.api.v2.json.Formats.TimestampFormat
-
-  def scheduled(runSpec: RunSpec): Instance = {
-    val instanceId = Id.forRunSpec(runSpec.id)
-    val phonyNetworkInfo = NetworkInfo("localhost", Seq.empty, Seq.empty)
-    val phonyTaskStatus = Task.Status(Timestamp.now(), None, None, Condition.Scheduled, phonyNetworkInfo)
-    val phonyTask = Task(Task.Id.forInstanceId(instanceId, None), runSpec.version, phonyTaskStatus)
-    Instance(
-      instanceId,
-      new AgentInfo("localhost", None, None, None, Seq.empty),
-      InstanceState(Condition.Scheduled, Timestamp.now(), None, None),
-      Map(phonyTask.taskId -> phonyTask),
-      runSpec.version,
-      runSpec.unreachableStrategy,
-      None
-    )
-  }
 
   def instancesById(instances: Seq[Instance]): Map[Instance.Id, Instance] =
     instances.map(instance => instance.instanceId -> instance)(collection.breakOut)

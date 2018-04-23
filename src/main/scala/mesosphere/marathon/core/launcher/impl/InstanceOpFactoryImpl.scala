@@ -60,7 +60,7 @@ class InstanceOpFactoryImpl(
         if (request.isForResidentRunSpec) {
           inferForResidents(app, request)
         } else {
-          inferNormalTaskOp(app, request)
+          inferNormalTaskOp(request)
         }
       case pod: PodDefinition =>
         if (request.isForResidentRunSpec) {
@@ -102,15 +102,16 @@ class InstanceOpFactoryImpl(
     }
   }
 
-  private[this] def inferNormalTaskOp(app: AppDefinition, request: InstanceOpFactory.Request): OfferMatchResult = {
+  private[this] def inferNormalTaskOp(request: InstanceOpFactory.Request): OfferMatchResult = {
     val InstanceOpFactory.Request(_, offer, instances, _, localRegion) = request
+    val scheduledInstance = request.scheduledInstances.head
+    val app = scheduledInstance.app
 
     val matchResponse =
       RunSpecOfferMatcher.matchOffer(app, offer, instances.values.toIndexedSeq,
         config.defaultAcceptedResourceRolesSet, config, schedulerPlugins, localRegion)
     matchResponse match {
       case matches: ResourceMatchResponse.Match =>
-        val scheduledInstance = request.scheduledInstances.head._2
 
         val now = clock.now()
 

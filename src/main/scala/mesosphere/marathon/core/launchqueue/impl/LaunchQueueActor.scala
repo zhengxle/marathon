@@ -11,7 +11,7 @@ import mesosphere.marathon.core.launchqueue.{ LaunchQueue, LaunchQueueConfig }
 import mesosphere.marathon.state.{ PathId, RunSpec }
 import LaunchQueue.QueuedInstanceInfo
 import com.typesafe.scalalogging.StrictLogging
-import mesosphere.marathon.core.instance.Instance
+import mesosphere.marathon.core.instance.{ Instance, ScheduledInstance }
 import mesosphere.marathon.core.instance.update.InstanceChange
 import mesosphere.marathon.core.task.tracker.InstanceTracker
 
@@ -191,7 +191,7 @@ private[impl] class LaunchQueueActor(
 
       async {
         val startInstances: Iterable[Future[Done]] = 0.until(count).toIterable.map { _ =>
-          val newInstance: Instance = Instance.scheduled(app)
+          val newInstance: Instance = new ScheduledInstance(app, Instance.Id.forRunSpec(app.id))
           instanceTracker.launchEphemeral(newInstance)
         }
         val start = await(Future.sequence(startInstances))
