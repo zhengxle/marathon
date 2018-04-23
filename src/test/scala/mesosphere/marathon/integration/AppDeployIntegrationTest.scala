@@ -62,7 +62,7 @@ class AppDeployIntegrationTest extends AkkaIntegrationTest with EmbeddedMarathon
       Then("The app deployment is created")
       deployment2 should be(OK)
 
-      And("and the app gets deployed immediately")
+      And("the app gets deployed immediately")
       waitForDeployment(deployment2)
       waitForTasks(app.id.toPath, 1)
     }
@@ -114,14 +114,14 @@ class AppDeployIntegrationTest extends AkkaIntegrationTest with EmbeddedMarathon
       And("the task eventually fails")
       waitForStatusUpdates("TASK_RUNNING", "TASK_FAILED")
 
-      And("our app gets a backoff delay")
-      val patienceConfig: WaitTestSupport.PatienceConfig = WaitTestSupport.PatienceConfig(timeout = Span(5, Seconds), interval = Span(100, Millis))
-      WaitTestSupport.waitUntil("queue item") {
-        val queue: List[ITQueueItem] = marathon.launchQueueForAppId(app.id.toPath).value
-        queue should have size 1
-        queue.map(_.delay.overdue) should contain(false)
-        true
-      }(patienceConfig)
+      //      And("our app gets a backoff delay")
+      //      val patienceConfig: WaitTestSupport.PatienceConfig = WaitTestSupport.PatienceConfig(timeout = Span(5, Seconds), interval = Span(100, Millis))
+      //      WaitTestSupport.waitUntil("queue item") {
+      //        val queue: List[ITQueueItem] = marathon.launchQueueForAppId(app.id.toPath).value
+      //        queue should have size 1
+      //        queue.map(_.delay.overdue) should contain(false)
+      //        true
+      //      }(patienceConfig)
       app
     }
 

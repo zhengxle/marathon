@@ -98,7 +98,10 @@ private class TaskLauncherActor(
   /** instances that are in flight and those in the tracker */
   private[this] var instanceMap: Map[Instance.Id, Instance] = _
 
-  def scheduledInstances: Iterable[ScheduledInstance] = instanceMap.values.collect { case instance: ScheduledInstance => instance }
+  def scheduledInstances: Iterable[ScheduledInstance] = {
+    logger.info(s"Instances $instanceMap")
+    instanceMap.values.collect { case instance: ScheduledInstance => instance }
+  }
   def instancesToLaunch = scheduledInstances.size
 
   /** Decorator to use this actor as a [[OfferMatcher#TaskOpSource]] */
@@ -136,11 +139,11 @@ private class TaskLauncherActor(
   override def receive: Receive = waitForInitialDelay
 
   private[this] def waitForInitialDelay: Receive = LoggingReceive.withLabel("waitingForInitialDelay") {
-    case RateLimiterActor.DelayUpdate(spec, delayUntil) if spec == runSpec =>
+    case RateLimiterActor.DelayUpdate(spec, delayUntil) if spec.id == runSpec.id =>
       stash()
       unstashAll()
       context.become(active)
-    case msg @ RateLimiterActor.DelayUpdate(spec, delayUntil) if spec != runSpec =>
+    case msg @ RateLimiterActor.DelayUpdate(spec, delayUntil) if spec.id != runSpec.id =>
       logger.warn(s"Received delay update for other runSpec: $msg")
     case message: Any => stash()
   }
@@ -187,7 +190,7 @@ private class TaskLauncherActor(
     * Receive rate limiter updates.
     */
   private[this] def receiveDelayUpdate: Receive = {
-    case RateLimiterActor.DelayUpdate(spec, delayUntil) if spec == runSpec =>
+    case RateLimiterActor.DelayUpdate(spec, delayUntil) if spec.id == runSpec.id =>
 
       if (!backOffUntil.contains(delayUntil)) {
 
@@ -209,7 +212,7 @@ private class TaskLauncherActor(
 
       logger.debug(s"After delay update $status")
 
-    case msg @ RateLimiterActor.DelayUpdate(spec, delayUntil) if spec != runSpec =>
+    case msg @ RateLimiterActor.DelayUpdate(spec, delayUntil) if spec.id != runSpec.id =>
       logger.warn(s"Received delay update for other runSpec: $msg")
 
     case RecheckIfBackOffUntilReached => OfferMatcherRegistration.manageOfferMatcherStatus()
@@ -250,25 +253,25 @@ private class TaskLauncherActor(
       // TODO: Do not block. Instance should be sent with the offer
       instanceMap = instanceTracker.instancesBySpecSync.instancesMap(runSpec.id).instanceMap
 
-      logger.debug(s"Ignoring offer ${offer.getId.getValue}: $status")
+      logger.info(s"Ignoring offer ${offer.getId.getValue}: $status")
       promise.trySuccess(MatchedInstanceOps.noMatch(offer.getId))
 
     case ActorOfferMatcher.MatchOffer(offer, promise) =>
       // TODO: Do not block. Instance should be sent with the offer
       instanceMap = instanceTracker.instancesBySpecSync.instancesMap(runSpec.id).instanceMap
 
-      logger.debug(s"Matching offer ${offer.getId} and need to launch $instancesToLaunch tasks.")
+      logger.info(s"Matching offer ${offer.getId} and need to launch $instancesToLaunch tasks.")
       val reachableInstances = instanceMap.filterNotAs{ case (_, instance) => instance.state.condition.isLost }
       val matchRequest = InstanceOpFactory.Request(runSpec, offer, reachableInstances, scheduledInstances, localRegion())
       instanceOpFactory.matchOfferRequest(matchRequest) match {
         case matched: OfferMatchResult.Match =>
-          logger.debug(s"Matched offer ${offer.getId} for run spec ${runSpec.id}, ${runSpec.version}.")
+          logger.info(s"Matched offer ${offer.getId} for run spec ${runSpec.id}, ${runSpec.version}.")
           // TODO(karsten): Mark instance as provisioned
           //instanceTracker.updateStatus(..., Provisioned)
-          offerMatchStatisticsActor ! matched
           handleInstanceOp(matched.instanceOp, offer, promise)
+          offerMatchStatisticsActor ! matched
         case notMatched: OfferMatchResult.NoMatch =>
-          logger.debug(s"Did not match offer ${offer.getId} for run spec ${runSpec.id}, ${runSpec.version}.")
+          logger.info(s"Did not match offer ${offer.getId} for run spec ${runSpec.id}, ${runSpec.version}.")
           offerMatchStatisticsActor ! notMatched
           promise.trySuccess(MatchedInstanceOps.noMatch(offer.getId))
       }
@@ -289,7 +292,7 @@ private class TaskLauncherActor(
 
     OfferMatcherRegistration.manageOfferMatcherStatus()
 
-    logger.debug(s"Request ${instanceOp.getClass.getSimpleName} for instance '${instanceOp.instanceId.idString}', version '${runSpec.version}'. $status")
+    logger.info(s"Request ${instanceOp.getClass.getSimpleName} for instance '${instanceOp.instanceId.idString}', version '${runSpec.version}'. $status")
     promise.trySuccess(MatchedInstanceOps(offer.getId, Seq(InstanceOpWithSource(myselfAsLaunchSource, instanceOp))))
   }
 

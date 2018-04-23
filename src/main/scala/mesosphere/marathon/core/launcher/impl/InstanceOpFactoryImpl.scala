@@ -141,6 +141,9 @@ class InstanceOpFactoryImpl(
           .build()
         val stateOp = InstanceUpdateOperation.MesosUpdate(provisionedInstance, Condition.Provisioned, phonyMesosStatus, clock.now())
         val instanceOp = InstanceOp.LaunchTask(taskInfo, stateOp, oldInstance = None, createOperations)
+
+        logger.info(s"Matched instance ${provisionedInstance.instanceId}")
+
         OfferMatchResult.Match(app, request.offer, instanceOp, clock.now())
       case matchesNot: ResourceMatchResponse.NoMatch => OfferMatchResult.NoMatch(app, request.offer, matchesNot.reasons, clock.now())
     }
