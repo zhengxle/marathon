@@ -98,10 +98,7 @@ private class TaskLauncherActor(
   /** instances that are in flight and those in the tracker */
   private[this] var instanceMap: Map[Instance.Id, Instance] = _
 
-  def scheduledInstances: Iterable[ScheduledInstance] = {
-    logger.info(s"Instances $instanceMap")
-    instanceMap.values.collect { case instance: ScheduledInstance => instance }
-  }
+  def scheduledInstances: Iterable[ScheduledInstance] = instanceMap.values.collect { case instance: ScheduledInstance => instance }
   def instancesToLaunch = scheduledInstances.size
 
   /** Decorator to use this actor as a [[OfferMatcher#TaskOpSource]] */
@@ -220,7 +217,7 @@ private class TaskLauncherActor(
 
   private[this] def receiveGetCurrentCount: Receive = {
     case TaskLauncherActor.GetCount =>
-      instanceMap = instanceTracker.instancesBySpecSync.instancesMap(runSpec.id).instanceMap
+      //      instanceMap = instanceTracker.instancesBySpecSync.instancesMap(runSpec.id).instanceMap
       replyWithQueuedInstanceCount()
   }
 
@@ -250,17 +247,14 @@ private class TaskLauncherActor(
 
   private[this] def receiveProcessOffers: Receive = {
     case ActorOfferMatcher.MatchOffer(offer, promise) if !shouldLaunchInstances =>
-      // TODO: Do not block. Instance should be sent with the offer
-      instanceMap = instanceTracker.instancesBySpecSync.instancesMap(runSpec.id).instanceMap
-
       logger.info(s"Ignoring offer ${offer.getId.getValue}: $status")
       promise.trySuccess(MatchedInstanceOps.noMatch(offer.getId))
 
     case ActorOfferMatcher.MatchOffer(offer, promise) =>
-      // TODO: Do not block. Instance should be sent with the offer
-      instanceMap = instanceTracker.instancesBySpecSync.instancesMap(runSpec.id).instanceMap
+      logger.info(s"Instances before sync ${instanceMap.values.map(i => i.instanceId -> i.state.condition)}")
 
       logger.info(s"Matching offer ${offer.getId} and need to launch $instancesToLaunch tasks.")
+      logger.info(s"Scheduled instances ${instanceMap.values.map(i => i.instanceId -> i.state.condition)}")
       val reachableInstances = instanceMap.filterNotAs{ case (_, instance) => instance.state.condition.isLost }
       val matchRequest = InstanceOpFactory.Request(runSpec, offer, reachableInstances, scheduledInstances, localRegion())
       instanceOpFactory.matchOfferRequest(matchRequest) match {
@@ -289,6 +283,7 @@ private class TaskLauncherActor(
 
     // Mark instance in internal map as provisioned
     instanceMap += instanceOp.instanceId -> instanceOp.stateOp.asInstanceOf[InstanceUpdateOperation.MesosUpdate].instance
+    logger.info(s"Updated instance map to ${instanceMap.values.map(i => i.instanceId -> i.state.condition)}")
 
     OfferMatcherRegistration.manageOfferMatcherStatus()
 
