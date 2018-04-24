@@ -139,7 +139,7 @@ class InstanceOpFactoryImpl(
           .setTaskId(taskInfo.getTaskId)
           .setState(Mesos.TaskState.TASK_STAGING)
           .build()
-        val stateOp = InstanceUpdateOperation.MesosUpdate(provisionedInstance, Condition.Provisioned, phonyMesosStatus, clock.now())
+        val stateOp = InstanceUpdateOperation.Provision(provisionedInstance)
         val instanceOp = InstanceOp.LaunchTask(taskInfo, stateOp, oldInstance = None, createOperations)
 
         logger.info(s"Matched instance ${provisionedInstance.instanceId}")

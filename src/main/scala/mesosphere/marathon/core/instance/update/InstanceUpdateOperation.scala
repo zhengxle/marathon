@@ -62,6 +62,11 @@ object InstanceUpdateOperation {
       hostPorts: Map[Task.Id, Seq[Int]],
       agentInfo: AgentInfo) extends InstanceUpdateOperation
 
+  case class Provision(instance: Instance) extends InstanceUpdateOperation {
+    override def instanceId: Instance.Id = instance.instanceId
+    override def possibleNewState: Option[Instance] = Some(instance)
+  }
+
   /**
     * Describes an instance update.
     *

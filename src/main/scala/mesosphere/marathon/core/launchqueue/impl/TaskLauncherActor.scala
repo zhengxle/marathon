@@ -282,7 +282,7 @@ private class TaskLauncherActor(
   private[this] def handleInstanceOp(instanceOp: InstanceOp, offer: Mesos.Offer, promise: Promise[MatchedInstanceOps]): Unit = {
 
     // Mark instance in internal map as provisioned
-    instanceMap += instanceOp.instanceId -> instanceOp.stateOp.asInstanceOf[InstanceUpdateOperation.MesosUpdate].instance
+    instanceMap += instanceOp.instanceId -> instanceOp.stateOp.asInstanceOf[InstanceUpdateOperation.Provision].instance
     logger.info(s"Updated instance map to ${instanceMap.values.map(i => i.instanceId -> i.state.condition)}")
 
     OfferMatcherRegistration.manageOfferMatcherStatus()

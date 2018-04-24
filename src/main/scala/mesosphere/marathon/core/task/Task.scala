@@ -114,6 +114,10 @@ case class Task(taskId: Task.Id, runSpecVersion: Timestamp, status: Task.Status)
         TaskUpdateEffect.Noop
       }
 
+    // going from scheduled to provisioned
+    case TaskUpdateOperation.MesosUpdate(Condition.Provisioned, _, _) if status.condition == Condition.Scheduled =>
+      TaskUpdateEffect.Noop
+
     // case 4: health or state updated
     case TaskUpdateOperation.MesosUpdate(newStatus, mesosStatus, _) =>
       logger.info(s"Got Mesos update for ${taskId} with new condition $newStatus given old condition ${status.condition}")
