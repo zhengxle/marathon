@@ -130,7 +130,7 @@ private class TaskLauncherActor(
 
     super.postStop()
 
-    logger.info(s"Stopped InstanceLauncherActor for ${runSpec.id} version ${runSpec.version}")
+    logger.info(s"Stopped TaskLauncherActor for ${runSpec.id} version ${runSpec.version}")
   }
 
   override def receive: Receive = waitForInitialDelay
@@ -159,6 +159,7 @@ private class TaskLauncherActor(
   private[this] def receiveUnknown: Receive = {
     case _: InstanceChange =>
       instanceMap = instanceTracker.instancesBySpecSync.instancesMap(runSpec.id).instanceMap
+      OfferMatcherRegistration.manageOfferMatcherStatus()
       sender() ! Done
     case msg: Any =>
       // fail fast and do not let the sender time out
@@ -167,6 +168,7 @@ private class TaskLauncherActor(
 
   private[this] def receiveStop: Receive = {
     case TaskLauncherActor.Stop =>
+      logger.info("Received stop.")
       if (inFlightInstanceOperations.nonEmpty) {
         val taskIds = inFlightInstanceOperations.map(_.instanceId).take(3).mkString(", ")
         logger.info(
@@ -179,7 +181,10 @@ private class TaskLauncherActor(
 
   private[this] def receiveSync: Receive = {
     case TaskLauncherActor.Sync =>
+      logger.info(s"Syncing state from: ${instanceMap.values.map(i => i.instanceId -> i.state.condition)}")
       instanceMap = instanceTracker.instancesBySpecSync.instancesMap(runSpec.id).instanceMap
+      logger.info(s"Syncing state to: ${instanceMap.values.map(i => i.instanceId -> i.state.condition)}")
+      OfferMatcherRegistration.manageOfferMatcherStatus()
       replyWithQueuedInstanceCount()
   }
 
@@ -331,7 +336,7 @@ private class TaskLauncherActor(
       val shouldBeRegistered = shouldLaunchInstances
 
       if (shouldBeRegistered && !registeredAsMatcher) {
-        logger.debug(s"Registering for ${runSpec.id}, ${runSpec.version}.")
+        logger.info(s"Registering for ${runSpec.id}, ${runSpec.version}.")
         offerMatcherManager.addSubscription(myselfAsOfferMatcher)(context.dispatcher)
         registeredAsMatcher = true
       } else if (!shouldBeRegistered && registeredAsMatcher) {

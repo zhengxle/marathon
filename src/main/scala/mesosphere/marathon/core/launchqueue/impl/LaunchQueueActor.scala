@@ -88,6 +88,7 @@ private[impl] class LaunchQueueActor(
     case Purge(runSpecId) =>
       launchers.get(runSpecId) match {
         case Some(actorRef) =>
+          logger.info(s"Purging TaskLauncherActor for app $runSpecId")
           val deferredMessages: Vector[DeferredMessage] =
             suspendedLaunchersMessages(actorRef) :+ DeferredMessage(sender(), ConfirmPurge)
           suspendedLaunchersMessages += actorRef -> deferredMessages
@@ -192,6 +193,7 @@ private[impl] class LaunchQueueActor(
       async {
         val startInstances: Iterable[Future[Done]] = 0.until(count).toIterable.map { _ =>
           val newInstance: Instance = new ScheduledInstance(app, Instance.Id.forRunSpec(app.id))
+          logger.info(s"Adding instance ${newInstance.instanceId}")
           instanceTracker.launchEphemeral(newInstance)
         }
         val start = await(Future.sequence(startInstances))
@@ -199,6 +201,8 @@ private[impl] class LaunchQueueActor(
         // Trigger TaskLaunchActor creation and sync with instance tracker.
         val actorRef = launchers.get(app.id).getOrElse(createAppTaskLauncher(app, 0))
         val info = await((actorRef ? TaskLauncherActor.Sync).mapTo[QueuedInstanceInfo])
+
+        logger.info(s"Added $count instances to ${app.id}.")
         Done
       }.pipeTo(sender())
 
