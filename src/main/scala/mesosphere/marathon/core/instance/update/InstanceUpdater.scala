@@ -17,9 +17,15 @@ object InstanceUpdater extends StrictLogging {
 
   private[instance] def updatedInstance(instance: Instance, updatedTask: Task, now: Timestamp): Instance = {
     val updatedTasks = instance.tasksMap.updated(updatedTask.taskId, updatedTask)
-    instance.copy(
+    Instance(
+      instanceId = instance.instanceId,
+      agentInfo = instance.agentInfo,
+      state = Instance.InstanceState(Some(instance.state), updatedTasks, now, instance.unreachableStrategy),
       tasksMap = updatedTasks,
-      state = Instance.InstanceState(Some(instance.state), updatedTasks, now, instance.unreachableStrategy))
+      runSpecVersion = instance.runSpecVersion,
+      unreachableStrategy = instance.unreachableStrategy,
+      reservation = instance.reservation
+    )
   }
 
   private[marathon] def launchEphemeral(op: LaunchEphemeral, now: Timestamp): InstanceUpdateEffect = {

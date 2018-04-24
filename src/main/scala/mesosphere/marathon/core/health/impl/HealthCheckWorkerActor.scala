@@ -54,6 +54,7 @@ class HealthCheckWorkerActor(implicit mat: Materializer) extends Actor with Stri
 
   def doCheck(
     app: AppDefinition, instance: Instance, check: MarathonHealthCheck): Future[Option[HealthResult]] = {
+    logger.info(s"Do health check for ${instance.instanceId} which is in state ${instance.state.condition}")
     // HealthChecks are only supported for legacy App instances with exactly one task
     val effectiveIpAddress = instance.appTask.status.networkInfo.effectiveIpAddress(app)
     effectiveIpAddress match {

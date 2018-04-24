@@ -4,6 +4,7 @@ package core.task
 import java.util.{ Base64, UUID }
 
 import com.fasterxml.uuid.{ EthernetAddress, Generators }
+import com.typesafe.scalalogging.StrictLogging
 import mesosphere.marathon.core.condition.Condition
 import mesosphere.marathon.core.condition.Condition.Terminal
 import mesosphere.marathon.core.instance.Instance
@@ -63,8 +64,7 @@ import play.api.libs.json._
   * unreserve operations. See https://github.com/mesosphere/marathon/issues/3223
   */
 
-case class Task(taskId: Task.Id, runSpecVersion: Timestamp, status: Task.Status) {
-  import Task.log
+case class Task(taskId: Task.Id, runSpecVersion: Timestamp, status: Task.Status) extends StrictLogging {
 
   def runSpecId: PathId = taskId.runSpecId
 
@@ -80,7 +80,7 @@ case class Task(taskId: Task.Id, runSpecVersion: Timestamp, status: Task.Status)
     // state should already be distinct enough.
     // related to https://github.com/mesosphere/marathon/pull/4531
     case op: TaskUpdateOperation if this.isTerminal =>
-      log.warn(s"received $op for terminal $taskId, ignoring")
+      logger.warn(s"received $op for terminal $taskId, ignoring")
       TaskUpdateEffect.Noop
 
     // case 1: running
@@ -116,8 +116,11 @@ case class Task(taskId: Task.Id, runSpecVersion: Timestamp, status: Task.Status)
 
     // case 4: health or state updated
     case TaskUpdateOperation.MesosUpdate(newStatus, mesosStatus, _) =>
+      logger.info(s"Got Mesos update for ${taskId} with new condition $newStatus given old condition ${status.condition}")
+
       // TODO(PODS): strange to use Condition here
       updatedHealthOrState(status.mesosStatus, mesosStatus).map { newTaskStatus =>
+        logger.info(s"Received new status ${newTaskStatus}")
         val updatedNetworkInfo = status.networkInfo.update(mesosStatus)
         val updatedStatus = status.copy(
           mesosStatus = Some(newTaskStatus), condition = newStatus, networkInfo = updatedNetworkInfo)
@@ -126,7 +129,7 @@ case class Task(taskId: Task.Id, runSpecVersion: Timestamp, status: Task.Status)
         // Or should we use Expunge in case of a terminal update for resident tasks?
         TaskUpdateEffect.Update(newState = updatedTask)
       } getOrElse {
-        log.debug("Ignoring status update for {}. Status did not change.", taskId)
+        logger.info(s"Ignoring status update for $taskId Status did not change.")
         TaskUpdateEffect.Noop
       }
 
@@ -170,8 +173,7 @@ case class Task(taskId: Task.Id, runSpecVersion: Timestamp, status: Task.Status)
   }
 }
 
-object Task {
-  private val log = LoggerFactory.getLogger(getClass)
+object Task extends StrictLogging {
 
   /**
     * Base for all task identifiers.
