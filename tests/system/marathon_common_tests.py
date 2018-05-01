@@ -1219,8 +1219,9 @@ def test_network_pinger(test_type, get_pinger_app, dns_format, marathon_service_
 
     @retrying.retry(wait_fixed=1000, stop_max_attempt_number=60, retry_on_exception=common.ignore_exception)
     def http_output_check():
-        status, output = shakedown.run_command_on_master('curl {}'.format(relay_url))
-        assert status
+        cmd = 'curl {}'.format(relay_url)
+        status, output = shakedown.run_command_on_master(cmd)
+        assert status, '{} failed with {}'.format(cmd, output)
         assert 'Pong {}'.format(pinger_app["id"]) in output
         assert 'Relay from {}'.format(relay_app["id"]) in output
 
