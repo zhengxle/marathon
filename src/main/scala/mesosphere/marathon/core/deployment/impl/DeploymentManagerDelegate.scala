@@ -8,6 +8,7 @@ import akka.util.Timeout
 import com.typesafe.scalalogging.StrictLogging
 import mesosphere.marathon.core.deployment.impl.DeploymentManagerActor.{ CancelDeployment, ListRunningDeployments, StartDeployment }
 import mesosphere.marathon.core.deployment.{ DeploymentConfig, DeploymentManager, DeploymentPlan, DeploymentStepInfo }
+import mesosphere.util.NamedExecutionContext
 
 import scala.concurrent.Future
 import scala.util.control.NonFatal
@@ -17,6 +18,8 @@ class DeploymentManagerDelegate(
     deploymentManagerActor: ActorRef) extends DeploymentManager with StrictLogging {
 
   val requestTimeout: Timeout = config.deploymentManagerRequestDuration
+
+  implicit val deploymentExecutionContext = NamedExecutionContext.fixedThreadPoolExecutionContext(Runtime.getRuntime.availableProcessors(), "deployment-module")
 
   override def start(plan: DeploymentPlan, force: Boolean, origSender: ActorRef): Future[Done] =
     askActorFuture[StartDeployment, Done]("start")(StartDeployment(plan, origSender, force))
@@ -34,7 +37,6 @@ class DeploymentManagerDelegate(
     implicit val timeoutImplicit: Timeout = timeout
     val answerFuture = (deploymentManagerActor ? message).mapTo[Future[R]]
 
-    import scala.concurrent.ExecutionContext.Implicits.global
     answerFuture.recover {
       case NonFatal(e) => throw new RuntimeException(s"in $method", e)
     }

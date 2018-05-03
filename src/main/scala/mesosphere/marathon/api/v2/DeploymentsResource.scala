@@ -6,14 +6,12 @@ import javax.servlet.http.HttpServletRequest
 import javax.ws.rs._
 import javax.ws.rs.core.Response.Status._
 import javax.ws.rs.core.{ Context, MediaType, Response }
-
 import com.typesafe.scalalogging.StrictLogging
 import mesosphere.marathon.api.v2.json.Formats._
 import mesosphere.marathon.api.{ AuthResource, MarathonMediaType }
 import mesosphere.marathon.core.group.GroupManager
 import mesosphere.marathon.plugin.auth._
-import mesosphere.marathon.state.PathId
-import mesosphere.marathon.{ MarathonConf, MarathonSchedulerService }
+import mesosphere.marathon.state.{ PathId, Timestamp }
 
 @Path("v2/deployments")
 @Consumes(Array(MediaType.APPLICATION_JSON))
@@ -29,9 +27,19 @@ class DeploymentsResource @Inject() (
 
   @GET
   def running(@Context req: HttpServletRequest): Response = authenticated(req) { implicit identity =>
-    val infos = result(service.listRunningDeployments())
-      .filter(_.plan.affectedRunSpecs.exists(isAuthorized(ViewRunSpec, _)))
-    ok(infos)
+    val start = Timestamp.now()
+
+    val list = result(service.listRunningDeployments())
+    val atFilterList = Timestamp.now()
+    logger.debug(s">>> ListDeployments ${start.until(atFilterList).toMillis}")
+    val filtered = list.filter(_.plan.affectedRunSpecs.exists(isAuthorized(ViewRunSpec, _)))
+
+    val atJsonSerialisation = Timestamp.now()
+    logger.debug(s">>> FilterDeployments ${atFilterList.until(atJsonSerialisation).toMillis}")
+    val response = ok(filtered)
+
+    logger.debug(s">>> SerializeDeployments ${atJsonSerialisation.until(Timestamp.now()).toMillis}")
+    response
   }
 
   @DELETE
