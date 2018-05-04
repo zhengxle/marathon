@@ -353,7 +353,8 @@ lazy val `loop-poc` = (project in file("loop-poc"))
   .enablePlugins(GitBranchPrompt, BasicLintingPlugin, TestWithCoveragePlugin)
   .settings(commonSettings: _*)
   .settings(formatSettings: _*)
-  .dependsOn(`mesos-client`)
+  .dependsOn(`mesos-client` % "test->test;compile->compile")
+  .dependsOn(`marathon` % "test->test")
   .settings(
     name := "loop-poc",
     libraryDependencies ++= Dependencies.loopPoc
