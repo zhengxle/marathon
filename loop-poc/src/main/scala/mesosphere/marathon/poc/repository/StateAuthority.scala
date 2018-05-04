@@ -54,13 +54,10 @@ object StateAuthority {
 
           val nextFrame = frame
             .lens(_.state).modify(StateTransition.applyTransitions(_, stateTransitions))
-          val withUpdates = nextFrame.lens(_.pendingUpdates).modify { pendingUpdates =>
-            pendingUpdates.enqueue(PendingUpdate(nextFrame.version, requestId, stateTransitions))
-          }
 
           (
             List(Effect.StateUpdated(requestId, stateTransitions)),
-            withUpdates)
+            nextFrame)
       }
   }
 

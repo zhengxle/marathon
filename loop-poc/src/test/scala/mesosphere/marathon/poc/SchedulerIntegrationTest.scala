@@ -1,7 +1,6 @@
 package mesosphere.marathon
 package poc
 
-import akka.stream.FlowShape
 import akka.{ Done, NotUsed }
 import akka.stream.scaladsl.{ Broadcast, Flow, MergePreferred }
 import akka.stream.{ ClosedShape, OverflowStrategy }
