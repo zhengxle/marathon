@@ -297,6 +297,8 @@ class MarathonFacade(
   //apps tasks resource --------------------------------------
   def tasks(appId: PathId): RestResult[List[ITEnrichedTask]] = {
     requireInBaseGroup(appId)
+    println("Querying tasks endpoint with following result:")
+    println(result(requestFor[String](Get(s"$url/v2/apps$appId/tasks")), waitTime))
     val res = result(requestFor[ITListTasks](Get(s"$url/v2/apps$appId/tasks")), waitTime)
     res.map(_.tasks.toList)
   }
