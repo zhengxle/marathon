@@ -1,0 +1,21 @@
+# ----------------------------------------------------------- #
+# Configuration Fragment : Shared Configuration               #
+# ----------------------------------------------------------- #
+# This fragment contains tunable definition and configuration #
+# parameters for the other fragmetns.                         #
+# ----------------------------------------------------------- #
+
+# Global test configuration
+# ===========================
+config:
+
+  # We repeat the tests 10 times to have enough statistics for the
+  # statistical functions to have a correct meaning.
+  repeat: 10
+
+# Global definitions
+# ==================
+define:
+
+  # The version specification we are using when writing the reponrts
+  versionspec: "{{meta:ref|date(%Y%m%d%H%M)}}-{{meta:version|safepath(meta:branch)|'unversioned'}}-{{meta:env}}-{{meta:test}}"
