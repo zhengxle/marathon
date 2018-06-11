@@ -1,0 +1,36 @@
+# ----------------------------------------------------------- #
+# Configuration Fragment : Custom DC/OS Cluster Target        #
+# ----------------------------------------------------------- #
+# This fragment instructs the driver to use the marathon      #
+# exposed from an enterprise cluster. In contrast to other    #
+# cluster targets it requires the auth token to be given by   #
+# the user.                                                   #
+# ----------------------------------------------------------- #
+
+# Global test configuration
+# ===========================
+config:
+
+  # We require the following definitions to be present (might be defined by
+  # other fragments, or must be given by the user)
+  definitions:
+    - name: base_url
+      desc: The URL to the deployed DC/OS cluster
+      required: yes
+
+  # We also require the user to provide his authentication token
+    - name: dcos_auth_token
+      desc: The authentication token to use for contacting the DC/OS cluster
+      required: yes
+
+# Test Metadata
+# ===========================
+meta:
+  env: extern-cluster-custom
+
+# Definitions
+# ===========================
+define:
+
+  # Define `marathon_url` as part of the cluster URL
+  marathon_url: "{{base_url}}/marathon"
