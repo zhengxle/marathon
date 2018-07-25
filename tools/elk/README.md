@@ -18,7 +18,7 @@ appropriate Logstash input directives such that the hostname field will be popul
 
 ### Single file
 
-Logstash config can be generate for a single log file using the following command:
+Logstash config can be generated for a single log file using the following command:
 
 ```
 bin/target file <path-to-logfile>
