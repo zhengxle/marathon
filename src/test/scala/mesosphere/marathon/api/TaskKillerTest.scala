@@ -3,6 +3,7 @@ package api
 
 import akka.Done
 import mesosphere.UnitTest
+import mesosphere.marathon.api.Rejection
 import scala.concurrent.ExecutionContext.Implicits.global
 import mesosphere.marathon.core.deployment.DeploymentPlan
 import mesosphere.marathon.core.group.GroupManager
@@ -41,7 +42,7 @@ class TaskKillerTest extends UnitTest {
       when(f.groupManager.runSpec(appId)).thenReturn(None)
 
       val result = f.taskKiller.kill(appId, (tasks) => Seq.empty[Instance])
-      result.failed.futureValue shouldEqual PathNotFoundException(appId)
+      result.failed.futureValue shouldEqual RejectionException(Rejection.PathNotFoundRejection(appId))
     }
 
     "AppNotFound with scaling" in {
@@ -51,7 +52,7 @@ class TaskKillerTest extends UnitTest {
       when(f.tracker.specInstances(appId)).thenReturn(Future.successful(Seq.empty))
 
       val result = f.taskKiller.killAndScale(appId, (tasks) => Seq.empty[Instance], force = true)
-      result.failed.futureValue shouldEqual PathNotFoundException(appId)
+      result.failed.futureValue shouldEqual RejectionException(Rejection.PathNotFoundRejection(appId))
     }
 
     "KillRequested with scaling" in {

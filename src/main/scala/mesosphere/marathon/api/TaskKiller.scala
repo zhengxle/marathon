@@ -32,7 +32,7 @@ class TaskKiller @Inject() (
   def kill(
     runSpecId: PathId,
     findToKill: (Seq[Instance] => Seq[Instance]),
-    wipe: Boolean = false)(implicit identity: Identity): Future[Seq[Instance]] = {
+    wipe: Boolean = false)(implicit identity: Identity): Future[Either[Rejection.PathNotFoundRejection, Seq[Instance]]] = {
 
     groupManager.runSpec(runSpecId) match {
       case Some(runSpec) =>
@@ -56,10 +56,10 @@ class TaskKiller @Inject() (
           // Return killed *and* expunged instances.
           // The user only cares that all instances won't exist eventually. That's why we send all instances back and
           // not just the killed instances.
-          foundInstances
+          Right(foundInstances)
         }
 
-      case None => Future.failed(PathNotFoundException(runSpecId))
+      case None => Future.successful(Left(Rejection.PathNotFoundRejection(runSpecId)))
     }
   }
 
@@ -83,7 +83,7 @@ class TaskKiller @Inject() (
   def killAndScale(
     appId: PathId,
     findToKill: (Seq[Instance] => Seq[Instance]),
-    force: Boolean)(implicit identity: Identity): Future[DeploymentPlan] = async {
+    force: Boolean)(implicit identity: Identity): Future[Either[Rejection.PathNotFoundRejection, DeploymentPlan]] = async {
     val instances = await(instanceTracker.specInstances(appId))
     val activeInstances = instances.filter(_.isActive)
     val instancesToKill = findToKill(activeInstances)
@@ -93,7 +93,7 @@ class TaskKiller @Inject() (
   @SuppressWarnings(Array("all")) // async/await
   def killAndScale(
     appInstances: Map[PathId, Seq[Instance]],
-    force: Boolean)(implicit identity: Identity): Future[DeploymentPlan] = {
+    force: Boolean)(implicit identity: Identity): Future[Either[Rejection.PathNotFoundRejection, DeploymentPlan]] = {
     def scaleApp(app: AppDefinition): AppDefinition = {
       checkAuthorization(UpdateRunSpec, app)
       appInstances.get(app.id).fold(app) { instances =>
@@ -117,8 +117,12 @@ class TaskKiller @Inject() (
     async {
       val allInstances = await(instanceTracker.instancesBySpec()).instancesMap
       //TODO: The exception does not take multiple ids.
-      appInstances.keys.find(!allInstances.contains(_)).map(id => throw PathNotFoundException(id))
-      await(killDeployment)
+      appInstances.keys.find(!allInstances.contains(_)) match {
+        case Some(id) =>
+          Left(Rejection.PathNotFoundRejection(id))
+        case None =>
+          Right(await(killDeployment))
+      }
     }
   }
 }

@@ -122,8 +122,10 @@ class TasksResource @Inject() (
     }(collection.breakOut)
 
     def scaleAppWithKill(toKill: Map[PathId, Seq[Instance]]): Future[Response] = async {
-      val killAndScale = await(taskKiller.killAndScale(toKill, force))
-      deploymentResult(killAndScale)
+      await(taskKiller.killAndScale(toKill, force))
+        .left.map(RejectionMapper.rejectionResponse)
+        .right.map(deploymentResult(_))
+        .merge
     }
 
     def doKillTasks(toKill: Map[PathId, Seq[Instance]]): Future[Response] = async {
@@ -134,7 +136,8 @@ class TasksResource @Inject() (
       val killed = await(Future.sequence(toKill
         .filter { case (appId, _) => affectedApps.exists(app => app.id == appId) }
         .map {
-          case (appId, instances) => taskKiller.kill(appId, _ => instances, wipe)
+          case (appId, instances) =>
+            taskKiller.kill(appId, _ => instances, wipe).map(unwrapRejection)
         })).flatten
       ok(jsonObjString("tasks" -> killed.flatMap { instance =>
         instance.tasksMap.valuesIterator.map { task =>

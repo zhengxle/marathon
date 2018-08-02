@@ -14,6 +14,7 @@ import akka.event.EventStream
 import akka.stream.Materializer
 import akka.stream.scaladsl.{Sink, Source}
 import com.wix.accord.Validator
+import mesosphere.marathon.api.Rejection
 import mesosphere.marathon.api.v2.validation.PodsValidation
 import mesosphere.marathon.api.v2.Validation.validateOrThrow
 import mesosphere.marathon.api.{AuthResource, RestResource, TaskKiller}
@@ -282,8 +283,12 @@ class PodsResource @Inject() (
       validateOrThrow(id)
       validateOrThrow(instanceId)
       val parsedInstanceId = Instance.Id.fromIdString(instanceId)
-      val instances = await(taskKiller.kill(id, _.filter(_.instanceId == parsedInstanceId)))
-      instances.headOption.fold(unknownTask(instanceId))(instance => ok(jsonString(instance)))
+      await(taskKiller.kill(id, _.filter(_.instanceId == parsedInstanceId))) match {
+        case Left(Rejection.PathNotFoundRejection(id, version)) =>
+          unknownPod(id, version)
+        case Right(instances) =>
+          instances.headOption.fold(unknownTask(instanceId))(instance => ok(jsonString(instance)))
+      }
     }
   }
 
@@ -314,8 +319,13 @@ class PodsResource @Inject() (
       def toKill(instances: Seq[Instance]): Seq[Instance] = {
         instances.filter(instance => instancesDesired.contains(instance.instanceId))
       }
-      val instances = await(taskKiller.kill(id, toKill))
-      ok(Json.toJson(instances))
+
+      await(taskKiller.kill(id, toKill)) match {
+        case Left(Rejection.PathNotFoundRejection(id, version)) =>
+          unknownPod(id, version)
+        case Right(instances) =>
+          ok(Json.toJson(instances))
+      }
     }
   }
 

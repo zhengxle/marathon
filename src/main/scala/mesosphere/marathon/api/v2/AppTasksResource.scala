@@ -21,9 +21,9 @@ import mesosphere.marathon.raml.Task._
 import mesosphere.marathon.raml.TaskConversion._
 import mesosphere.marathon.state.PathId
 import mesosphere.marathon.state.PathId._
+import RightBiasedFutureEither._
 
 import scala.async.Async._
-import scala.concurrent.Future
 
 @Consumes(Array(MediaType.APPLICATION_JSON))
 @Produces(Array(MediaType.APPLICATION_JSON))
@@ -108,24 +108,25 @@ class AppTasksResource @Inject() (
 
     if (scale && wipe) throw new BadRequestException("You cannot use scale and wipe at the same time.")
 
-    if (scale) {
-      val deploymentF = taskKiller.killAndScale(pathId, findToKill, force)
-      deploymentResult(result(deploymentF))
+    val response: FutureEither[Rejection.PathNotFoundRejection, Response] = if (scale) {
+      for {
+        plan <- taskKiller.killAndScale(pathId, findToKill, force).right
+      } yield deploymentResult(plan)
     } else {
-      val response: Future[Response] = async {
-        val instances = await(taskKiller.kill(pathId, findToKill, wipe))
-        val healthStatuses = await(healthCheckManager.statuses(pathId))
+      for {
+        instances <- taskKiller.kill(pathId, findToKill, wipe).right
+        healthStatuses <- healthCheckManager.statuses(pathId).asRight
+      } yield {
         val enrichedTasks: Seq[EnrichedTask] = instances.map { instance =>
           val killedTask = instance.appTask
           EnrichedTask(instance, killedTask, healthStatuses.getOrElse(instance.instanceId, Nil))
         }
         ok(jsonObjString("tasks" -> enrichedTasks.toRaml))
-      }.recover {
-        case PathNotFoundException(appId, version) => unknownApp(appId, version)
       }
-
-      result(response)
     }
+    result(response.unwrap)
+      .left.map { case Rejection.PathNotFoundRejection(appId, version) => unknownApp(appId, version) }
+      .merge
   }
 
   @DELETE
@@ -151,13 +152,15 @@ class AppTasksResource @Inject() (
 
     if (scale && wipe) throw new BadRequestException("You cannot use scale and wipe at the same time.")
 
-    if (scale) {
-      val deploymentF = taskKiller.killAndScale(pathId, findToKill, force)
-      deploymentResult(result(deploymentF))
+    val response: FutureEither[Rejection.PathNotFoundRejection, Response] = if (scale) {
+      for {
+        deployment <- taskKiller.killAndScale(pathId, findToKill, force).right
+      } yield deploymentResult(deployment)
     } else {
-      val response: Future[Response] = async {
-        val instances = await(taskKiller.kill(pathId, findToKill, wipe))
-        val healthStatuses = await(healthCheckManager.statuses(pathId))
+      for {
+        instances <- taskKiller.kill(pathId, findToKill, wipe).right
+        healthStatuses <- healthCheckManager.statuses(pathId).asRight
+      } yield {
         instances.headOption match {
           case None =>
             unknownTask(id)
@@ -166,11 +169,11 @@ class AppTasksResource @Inject() (
             val enrichedTask = EnrichedTask(instance, killedTask, healthStatuses.getOrElse(instance.instanceId, Nil))
             ok(jsonObjString("task" -> enrichedTask.toRaml))
         }
-      }.recover {
-        case PathNotFoundException(appId, version) => unknownApp(appId, version)
       }
-
-      result(response)
     }
+
+    result(response.unwrap)
+      .left.map { case Rejection.PathNotFoundRejection(appId, version) => unknownApp(appId, version) }
+      .merge
   }
 }

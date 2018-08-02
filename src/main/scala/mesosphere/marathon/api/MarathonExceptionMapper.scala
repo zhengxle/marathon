@@ -48,20 +48,10 @@ class MarathonExceptionMapper extends ExceptionMapper[JavaException] with Strict
       .build
   }
 
-  private def rejectionToResponse(rejection: Rejection): Response = rejection match {
-    case Rejection.AccessDeniedRejection(authorizer, identity) =>
-      ResponseFacade(authorizer.handleNotAuthorized(identity, _))
-    case Rejection.NotAuthenticatedRejection(authenticator, request) =>
-      val requestWrapper = new RequestFacade(request)
-      ResponseFacade(authenticator.handleNotAuthenticated(requestWrapper, _))
-    case Rejection.ServiceUnavailableRejection =>
-      Response.status(Response.Status.SERVICE_UNAVAILABLE).build()
-  }
-
   def toResponse(exception: JavaException): Response = {
     exception match {
       case RejectionException(rejection) =>
-        rejectionToResponse(rejection)
+        RejectionMapper.rejectionResponse(rejection)
       case e =>
         exceptionToResponse(e)
     }
@@ -117,7 +107,6 @@ class MarathonExceptionMapper extends ExceptionMapper[JavaException] with Strict
           Json.toJson(failure))
 
       case _: TimeoutException => (ServiceUnavailable.intValue, defaultEntity)
-      case _: PathNotFoundException => (NotFound.intValue, defaultEntity)
       case _: AppNotFoundException => (NotFound.intValue, defaultEntity)
       case _: PodNotFoundException => (NotFound.intValue, defaultEntity)
       case _: UnknownGroupException => (NotFound.intValue, defaultEntity)

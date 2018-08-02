@@ -6,11 +6,6 @@ import mesosphere.marathon.state.{PathId, Timestamp}
 class Exception(msg: String, cause: Throwable = null) extends scala.RuntimeException(msg, cause)
 
 // TODO(MARATHON-8202) - convert to Rejection
-case class PathNotFoundException(id: PathId, version: Option[Timestamp] = None) extends Exception(
-  s"Path '$id' does not exist" + version.fold("")(v => s" in version $v")
-)
-
-// TODO(MARATHON-8202) - convert to Rejection
 case class AppNotFoundException(id: PathId, version: Option[Timestamp] = None) extends Exception(
   s"App '$id' does not exist" + version.fold("")(v => s" in version $v")
 )

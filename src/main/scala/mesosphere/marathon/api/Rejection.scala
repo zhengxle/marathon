@@ -3,6 +3,7 @@ package api
 
 import javax.servlet.http.HttpServletRequest
 import mesosphere.marathon.plugin.auth.{Authenticator, Authorizer, Identity}
+import mesosphere.marathon.state.{PathId, Timestamp}
 
 /**
   * Exception which, when thrown, will cause the corresponding rejection type to be mapped to an API response.
@@ -30,4 +31,6 @@ object Rejection {
     * A dependent service (IE authentication) was not available, and therefore the request could not be processed.
     */
   case object ServiceUnavailableRejection extends Rejection
+
+  case class PathNotFoundRejection(id: PathId, version: Option[Timestamp] = None) extends Rejection
 }

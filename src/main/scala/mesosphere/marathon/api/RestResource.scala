@@ -82,6 +82,11 @@ trait RestResource extends JaxResource {
 
   protected def result[T](fn: Awaitable[T]): T = Await.result(fn, config.zkTimeoutDuration)
 
+  protected def unwrapRejection[T](e: Either[Rejection, T]): T = e match {
+    case Left(rej) => throw new RejectionException(rej)
+    case Right(v) => v
+  }
+
   /**
     * Checks if the implicit validator yields a valid result.
     * See [[validateOrThrow]], which is preferred to this.
