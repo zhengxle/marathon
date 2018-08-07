@@ -13,8 +13,8 @@ node('py36') {
             pipelineTriggers([cron('H H(0-23)/2 * * *')]),
             parameters([
                     string(name: 'channel',
-                            defaultValue: 'testing/pull/1739',
-                            description: 'PR to start the cluster from e.g. testing/pull/1739'
+                            defaultValue: 'testing/pull/3228',
+                            description: 'PR to start the cluster from e.g. testing/pull/3228'
                     )]
             )
     ])
