@@ -4,21 +4,6 @@ node('py36') {
   wrap([$class: 'MesosSingleUseSlave']) {
   wrap([$class: 'AnsiColorBuildWrapper', 'colorMapName': 'XTerm']) {
 
-    // Hardcoded default values are:
-    // DC/OS OS: channel="testing/pull/1739", for open cluster
-    // DC/OS EE: channel="testing/pull/1296", for strict or permissive clusters
-    // The channel can be passed to the job in Jenkins (Build with Parameters) so that this job can be executed against any PR/cluster.
-    properties([
-            // Run pipeline every 2h.
-            pipelineTriggers([cron('H H(0-23)/2 * * *')]),
-            parameters([
-                    string(name: 'channel',
-                            defaultValue: 'testing/pull/3228',
-                            description: 'PR to start the cluster from e.g. testing/pull/3228'
-                    )]
-            )
-    ])
-
     stage("Run System Integration Test Pipeline") {
       try {
         checkout scm
@@ -29,7 +14,7 @@ node('py36') {
             string(credentialsId: '42f2e3fb-3f4f-47b2-a128-10ac6d0f6825', variable: 'DOCKER_HUB_PASSWORD'),
             string(credentialsId: '66c40969-a46d-470e-b8a2-6f04f2b3f2d5', variable: 'DATADOG_API_KEY')
           ]) {
-            sh """./ci/si_pipeline.sh $params.channel open"""
+            sh """./ci/si_pipeline.sh testing/pull/3228 open"""
           }
         } finally {
             junit allowEmptyResults: true, testResults: "**/shakedown.xml"
