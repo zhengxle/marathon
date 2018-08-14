@@ -4,14 +4,21 @@ package scheduling
 import akka.Done
 import mesosphere.marathon.core.instance.Instance
 import mesosphere.marathon.core.launcher.OfferProcessor
-import mesosphere.marathon.state.PathId
+import mesosphere.marathon.state.{PathId, RunSpec}
 import org.apache.mesos.Protos
 
 import scala.concurrent.{ExecutionContext, Future}
 
 trait Scheduler extends OfferProcessor {
 
-  //def create(runSpec: RunSpec): Future[Instance.Id]
+  /**
+    * Create new instances based on the runnable spec.
+    *
+    * @param runSpec
+    * @param count
+    * @return Done when instances have been added.
+    */
+  def add(runSpec: RunSpec, count: Int = 1)(implicit ec: ExecutionContext): Future[Done]
 
   /**
     * Retrieve all instances for a specific run spec.

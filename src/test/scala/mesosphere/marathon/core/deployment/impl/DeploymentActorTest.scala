@@ -38,6 +38,7 @@ class DeploymentActorTest extends AkkaUnitTest with GroupCreation {
     val scheduler: scheduling.Scheduler = mock[scheduling.Scheduler]
     scheduler.stop(any)(any) returns Future.successful(Done)
     scheduler.decommission(any)(any) returns Future.successful(Done)
+    scheduler.add(any, any)(any) returns Future.successful(Done)
 
     val queue: LaunchQueue = mock[LaunchQueue]
     val killService = new KillServiceMock(system)
@@ -123,9 +124,7 @@ class DeploymentActorTest extends AkkaUnitTest with GroupCreation {
 
       queue.purge(any) returns Future.successful(Done)
       schedulerActions.startRunSpec(any) returns Future.successful(Done)
-      scheduler.stop(any, any).returns(Future.successful(Done))
-      scheduler.decommission(any, any).returns(Future.successful(Done))
-      scheduler.getInstances(Matchers.eq(app1.id))(any[ExecutionContext]) returns Future.successful(Seq(instance1_1, instance1_2))
+      scheduler.getInstances(Matchers.eq(app1.id))(any) returns Future.successful(Seq(instance1_1, instance1_2))
       scheduler.getInstances(Matchers.eq(app2.id))(any) returns Future.successful(Seq(instance2_1))
       scheduler.getInstances(Matchers.eq(app3.id))(any) returns Future.successful(Seq(instance3_1))
       scheduler.getInstances(Matchers.eq(app4.id))(any) returns Future.successful(Seq(instance4_1))

@@ -223,7 +223,8 @@ class CoreModuleImpl @Inject() (
   lazy val schedulingModule = new SchedulingModule(
     launcherModule.offerProcessor,
     instanceTrackerModule.instanceTracker,
-    taskStatusUpdateProcessor
+    taskStatusUpdateProcessor,
+    appOfferMatcherModule.launchQueue
   )
 
   // PLUGINS

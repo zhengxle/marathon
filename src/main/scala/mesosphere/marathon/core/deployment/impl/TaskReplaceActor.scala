@@ -9,7 +9,6 @@ import com.typesafe.scalalogging.StrictLogging
 import mesosphere.marathon.core.event._
 import mesosphere.marathon.core.instance.{Goal, Instance}
 import mesosphere.marathon.core.instance.Instance.Id
-import mesosphere.marathon.core.launchqueue.LaunchQueue
 import mesosphere.marathon.core.readiness.ReadinessCheckExecutor
 import mesosphere.marathon.core.task.termination.InstanceChangedPredicates.considerTerminal
 import mesosphere.marathon.core.task.termination.{KillReason, KillService}
@@ -25,7 +24,6 @@ class TaskReplaceActor(
     val deploymentManagerActor: ActorRef,
     val status: DeploymentStatus,
     val killService: KillService,
-    val launchQueue: LaunchQueue,
     val scheduler: scheduling.Scheduler,
     val eventBus: EventStream,
     val readinessCheckExecutor: ReadinessCheckExecutor,
@@ -77,23 +75,15 @@ class TaskReplaceActor(
     reconcileAlreadyStartedInstances()
 
     async {
-      // Update run spec in task launcher actor.
-      // Currently the [[TaskLauncherActor]] always starts instances with the latest run spec. Let's say there are 2
-      // running instances with v1 and 3 scheduled for v1. If the users forces an update to v2 the current logic will
-      // kill the 2 running instances and only tell the [[TaskLauncherActor]] to start the 3 scheduled v1 instances with
-      // the v2 run spec. We then schedule 2 more v2 instances. In the future we probably want to bind instances to a
-      // certain run spec. Until then we have to update the run spec in a [[TaskLauncherActor]]
-      val synced = await(launchQueue.sync(runSpec))
-
       // kill old instances to free some capacity
       for (_ <- 0 until ignitionStrategy.nrToKillImmediately) killNextOldInstance()
 
       // start new instances, if possible
-      val launched = await(launchInstances())
+      await(launchInstances())
 
       // reset the launch queue delay
-      logger.info("Resetting the backoff delay before restarting the runSpec")
-      launchQueue.resetDelay(runSpec)
+      //      logger.info("Resetting the backoff delay before restarting the runSpec")
+      //      scheduler.asInstanceOf[LegacyScheduler].launchQueue.resetDelay(runSpec)
 
       // it might be possible, that we come here, but nothing is left to do
       checkFinished()
@@ -172,7 +162,7 @@ class TaskReplaceActor(
     if (instancesToStartNow > 0) {
       logger.info(s"Reconciling instances during app $pathId restart: queuing $instancesToStartNow new instances")
       instancesStarted += instancesToStartNow
-      launchQueue.add(runSpec, instancesToStartNow)
+      scheduler.add(runSpec, instancesToStartNow)
     } else {
       Future.successful(Done)
     }
@@ -225,14 +215,12 @@ object TaskReplaceActor extends StrictLogging {
     deploymentManagerActor: ActorRef,
     status: DeploymentStatus,
     killService: KillService,
-    launchQueue: LaunchQueue,
     scheduler: scheduling.Scheduler,
     eventBus: EventStream,
     readinessCheckExecutor: ReadinessCheckExecutor,
     app: RunSpec,
     promise: Promise[Unit]): Props = Props(
-    new TaskReplaceActor(deploymentManagerActor, status, killService, launchQueue, scheduler, eventBus,
-      readinessCheckExecutor, app, promise)
+    new TaskReplaceActor(deploymentManagerActor, status, killService, scheduler, eventBus, readinessCheckExecutor, app, promise)
   )
 
   /** Encapsulates the logic how to get a Restart going */

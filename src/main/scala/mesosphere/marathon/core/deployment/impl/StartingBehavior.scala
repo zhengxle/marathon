@@ -10,7 +10,6 @@ import mesosphere.marathon.core.condition.Condition
 import mesosphere.marathon.core.deployment.impl.StartingBehavior.{PostStart, Sync}
 import mesosphere.marathon.core.event.{InstanceChanged, InstanceHealthChanged}
 import mesosphere.marathon.core.instance.Instance
-import mesosphere.marathon.core.launchqueue.LaunchQueue
 
 import scala.async.Async.{async, await}
 import scala.concurrent.Future
@@ -22,7 +21,6 @@ trait StartingBehavior extends ReadinessBehavior with StrictLogging { this: Acto
   def eventBus: EventStream
   def scaleTo: Int
   def nrToStart: Future[Int]
-  def launchQueue: LaunchQueue
   def scheduler: scheduling.Scheduler
 
   def initializeStart(): Future[Done]
@@ -45,8 +43,7 @@ trait StartingBehavior extends ReadinessBehavior with StrictLogging { this: Acto
     case InstanceChanged(id, `version`, `pathId`, condition: Condition, instance) if condition.isTerminal || instance.isReservedTerminal =>
       logger.warn(s"New instance [$id] failed during app ${runSpec.id.toString} scaling, queueing another instance")
       instanceTerminated(id)
-      // TODO(karsten): scheduler.create(runSpec)
-      launchQueue.add(runSpec, 1).pipeTo(self)
+      scheduler.add(runSpec, 1).pipeTo(self)
 
     case Sync => async {
       val instances = await(scheduler.getInstances(runSpec.id))
@@ -55,8 +52,7 @@ trait StartingBehavior extends ReadinessBehavior with StrictLogging { this: Acto
       logger.debug(s"Sync start instancesToStartNow=$instancesToStartNow appId=${runSpec.id}")
       if (instancesToStartNow > 0) {
         logger.info(s"Reconciling app ${runSpec.id} scaling: queuing $instancesToStartNow new instances")
-        // TODO(karsten): scheduler.create(runSpec)
-        await(launchQueue.add(runSpec, instancesToStartNow))
+        await(scheduler.add(runSpec, instancesToStartNow))
       }
       context.system.scheduler.scheduleOnce(StartingBehavior.syncInterval, self, Sync)
       Done // Otherwise we will pipe the result of scheduleOnce(...) call which is a Cancellable

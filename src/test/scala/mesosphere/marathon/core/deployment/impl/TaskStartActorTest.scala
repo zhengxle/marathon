@@ -32,7 +32,7 @@ class TaskStartActorTest extends AkkaUnitTest with Eventually {
       val ref = f.startActor(app, app.instances, promise)
       watch(ref)
 
-      eventually { verify(f.launchQueue, atLeastOnce).add(app, app.instances) }
+      eventually { verify(f.scheduler, atLeastOnce).add(eq(app), eq(app.instances))(any) }
 
       for (i <- 0 until app.instances)
         system.eventStream.publish(f.instanceChange(app, Instance.Id.forRunSpec(app.id), Running))
@@ -53,7 +53,7 @@ class TaskStartActorTest extends AkkaUnitTest with Eventually {
       val ref = f.startActor(app, app.instances, promise)
       watch(ref)
 
-      eventually { verify(f.launchQueue, atLeastOnce).add(app, app.instances - 1) }
+      eventually { verify(f.scheduler, atLeastOnce).add(eq(app), eq(app.instances - 1))(any) }
 
       for (i <- 0 until (app.instances - 1))
         system.eventStream.publish(f.instanceChange(app, Instance.Id.forRunSpec(app.id), Running))
@@ -74,7 +74,7 @@ class TaskStartActorTest extends AkkaUnitTest with Eventually {
       val ref = f.startActor(app, app.instances, promise)
       watch(ref)
 
-      eventually { verify(f.launchQueue, atLeastOnce).add(app, app.instances - 1) }
+      eventually { verify(f.scheduler, atLeastOnce).add(eq(app), eq(app.instances - 1))(any) }
 
       for (i <- 0 until (app.instances - 1))
         system.eventStream.publish(f.instanceChange(app, Instance.Id.forRunSpec(app.id), Running))
@@ -112,7 +112,7 @@ class TaskStartActorTest extends AkkaUnitTest with Eventually {
       val ref = f.startActor(app, app.instances, promise)
       watch(ref)
 
-      eventually { verify(f.launchQueue, atLeastOnce).add(app, app.instances) }
+      eventually { verify(f.scheduler, atLeastOnce).add(eq(app), eq(app.instances))(any) }
 
       for (i <- 0 until app.instances)
         system.eventStream.publish(f.healthChange(app, Instance.Id.forRunSpec(app.id), healthy = true))
@@ -150,11 +150,11 @@ class TaskStartActorTest extends AkkaUnitTest with Eventually {
       val ref = f.startActor(app, app.instances, promise)
       watch(ref)
 
-      eventually { verify(f.launchQueue, atLeastOnce).add(app, app.instances) }
+      eventually { verify(f.scheduler, atLeastOnce).add(eq(app), eq(app.instances))(any) }
 
       system.eventStream.publish(f.instanceChange(app, Instance.Id.forRunSpec(app.id), Failed))
 
-      eventually { verify(f.launchQueue, atLeastOnce).add(app, 1) }
+      eventually { verify(f.scheduler, atLeastOnce).add(eq(app), eq(1))(any) }
 
       for (i <- 0 until app.instances)
         system.eventStream.publish(f.instanceChange(app, Instance.Id.forRunSpec(app.id), Running))
@@ -168,12 +168,11 @@ class TaskStartActorTest extends AkkaUnitTest with Eventually {
   class Fixture {
 
     val scheduler: scheduling.Scheduler = mock[scheduling.Scheduler]
-    val launchQueue: LaunchQueue = mock[LaunchQueue]
     val deploymentManager = TestProbe()
     val status: DeploymentStatus = mock[DeploymentStatus]
     val readinessCheckExecutor: ReadinessCheckExecutor = mock[ReadinessCheckExecutor]
 
-    launchQueue.add(any, any) returns Future.successful(Done)
+    scheduler.add(any, any)(any) returns Future.successful(Done)
 
     def instanceChange(app: AppDefinition, id: Instance.Id, condition: Condition): InstanceChanged = {
       val instance: Instance = mock[Instance]
@@ -187,8 +186,7 @@ class TaskStartActorTest extends AkkaUnitTest with Eventually {
 
     def startActor(app: AppDefinition, scaleTo: Int, promise: Promise[Unit]): TestActorRef[TaskStartActor] =
       TestActorRef(childSupervisor(TaskStartActor.props(
-        deploymentManager.ref, status, scheduler, launchQueue, system.eventStream, readinessCheckExecutor,
-        app, scaleTo, promise), "Test-TaskStartActor"))
+        deploymentManager.ref, status, scheduler, system.eventStream, readinessCheckExecutor, app, scaleTo, promise), "Test-TaskStartActor"))
 
     // Prevents the TaskActor from restarting too many times (filling the log with exceptions) similar to how it's
     // parent actor (DeploymentActor) does it.

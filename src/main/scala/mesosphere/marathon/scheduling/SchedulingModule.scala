@@ -2,13 +2,15 @@ package mesosphere.marathon
 package scheduling
 
 import mesosphere.marathon.core.launcher.OfferProcessor
+import mesosphere.marathon.core.launchqueue.LaunchQueue
 import mesosphere.marathon.core.task.tracker.InstanceTracker
 import mesosphere.marathon.core.task.update.TaskStatusUpdateProcessor
 
 class SchedulingModule(
     offerProcessor: OfferProcessor,
     instanceTracker: InstanceTracker,
-    statusUpdateProcessor: TaskStatusUpdateProcessor) {
+    statusUpdateProcessor: TaskStatusUpdateProcessor,
+    launchQueue: LaunchQueue) {
 
-  lazy val scheduler = LegacyScheduler(offerProcessor, instanceTracker, statusUpdateProcessor)
+  lazy val scheduler = LegacyScheduler(offerProcessor, instanceTracker, statusUpdateProcessor, launchQueue)
 }

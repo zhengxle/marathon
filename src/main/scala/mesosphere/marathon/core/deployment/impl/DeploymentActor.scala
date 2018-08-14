@@ -135,7 +135,7 @@ private class DeploymentActor(
   def startRunnable(runnableSpec: RunSpec, scaleTo: Int, status: DeploymentStatus): Future[Unit] = {
     val promise = Promise[Unit]()
     scheduler.getInstances(runnableSpec.id).map { instances =>
-      context.actorOf(childSupervisor(AppStartActor.props(deploymentManagerActor, status, schedulerActions, launchQueue, scheduler,
+      context.actorOf(childSupervisor(AppStartActor.props(deploymentManagerActor, status, schedulerActions, scheduler,
         eventBus, readinessCheckExecutor, runnableSpec, scaleTo, instances, promise), s"AppStart-${plan.id}"))
     }
     promise.future
@@ -173,7 +173,7 @@ private class DeploymentActor(
         tasksToStart.fold(Future.successful(Done)) { tasksToStart =>
           logger.debug(s"Start next $tasksToStart tasks")
           val promise = Promise[Unit]()
-          context.actorOf(childSupervisor(TaskStartActor.props(deploymentManagerActor, status, scheduler, launchQueue, eventBus,
+          context.actorOf(childSupervisor(TaskStartActor.props(deploymentManagerActor, status, scheduler, eventBus,
             readinessCheckExecutor, runnableSpec, scaleTo, promise), s"TaskStart-${plan.id}"))
           promise.future.map(_ => Done)
         }
@@ -186,6 +186,7 @@ private class DeploymentActor(
     logger.debug(s"Stop runnable $runSpec")
     healthCheckManager.removeAllFor(runSpec.id)
 
+    //TODO(karsten): remove the purge. Decommisioning should be enough.
     // Purging launch queue
     await(launchQueue.purge(runSpec.id))
 
@@ -195,6 +196,7 @@ private class DeploymentActor(
     await(Future.sequence(instances.map(i => scheduler.decommission(i.instanceId))))
     await(killService.killInstances(instances, KillReason.DeletingApp))
 
+    //TODO(karsten): remove the reset. Decommisioning should be enough.
     launchQueue.resetDelay(runSpec)
 
     // The tasks will be removed from the InstanceTracker when their termination
@@ -213,8 +215,8 @@ private class DeploymentActor(
       Future.successful(Done)
     } else {
       val promise = Promise[Unit]()
-      context.actorOf(childSupervisor(TaskReplaceActor.props(deploymentManagerActor, status, killService,
-        launchQueue, scheduler, eventBus, readinessCheckExecutor, run, promise), s"TaskReplace-${plan.id}"))
+      context.actorOf(childSupervisor(TaskReplaceActor.props(deploymentManagerActor, status, killService, scheduler,
+        eventBus, readinessCheckExecutor, run, promise), s"TaskReplace-${plan.id}"))
       promise.future.map(_ => Done)
     }
   }

@@ -85,7 +85,6 @@ class AppStartActorTest extends AkkaUnitTest {
     class Fixture {
 
       val schedulerActions: SchedulerActions = mock[SchedulerActions]
-      val launchQueue: LaunchQueue = mock[LaunchQueue]
       val deploymentManager: TestProbe = TestProbe()
       val deploymentStatus: DeploymentStatus = mock[DeploymentStatus]
       val readinessCheckExecutor: ReadinessCheckExecutor = mock[ReadinessCheckExecutor]
@@ -107,8 +106,8 @@ class AppStartActorTest extends AkkaUnitTest {
       }
 
       def startActor(app: AppDefinition, scaleTo: Int, promise: Promise[Unit]): TestActorRef[AppStartActor] =
-        TestActorRef(AppStartActor.props(deploymentManager.ref, deploymentStatus, schedulerActions,
-          launchQueue, scheduler, system.eventStream, readinessCheckExecutor, app, scaleTo, Seq.empty, promise)
+        TestActorRef(AppStartActor.props(deploymentManager.ref, deploymentStatus, schedulerActions, scheduler, system.eventStream,
+          readinessCheckExecutor, app, scaleTo, Seq.empty, promise)
         )
     }
   }
