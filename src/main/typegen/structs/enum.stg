@@ -1,0 +1,87 @@
+//
+// Signature of an enum type
+//
+// @param <EnumTypeArguments> type - The enum type that needs to be instantiated
+//
+sig_enum(type) ::= "<type.id>"
+
+
+//
+// Compose the declaration expression for the given enum
+//
+// @param <EnumTypeArguments> type - The enum type that needs to be instantiated
+//
+declare_enum(type) ::= <%
+<if(!type.unionChild)><declare_enum_pair(type,"RamlGenerated")><endif>
+%>
+
+// Compose the declaration of the given object
+declare_enum_pair(type,baseType) ::= <<
+// Declared in <type.scope.desc>
+
+/**
+ * Union type for <type.id>
+ * <type.description>
+ */
+sealed trait <sig(type)> extends Product with Serializable with <baseType> {
+  val value: String
+  override def toString: String = value
+}
+
+object <sig(type)> {
+  <type.values:decl_enum__value(type); separator="\n">
+  implicit object playJsonFormat extends play.api.libs.json.Format[<sig(type)>] {
+    def reads(json: play.api.libs.json.JsValue): play.api.libs.json.JsResult[<sig(type)>] =
+      json match {
+        case play.api.libs.json.JsString(s) => s.toLowerCase match {
+          <type.values:{v|<decl_enum__reads_case(v)>}; separator="\n">
+          <decl_enum__reads_error_default_case(type)>
+        }
+        <decl_enum__reads_error_default_case(type)>
+      }
+    def writes(o: <sig(type)>): play.api.libs.json.JsValue = play.api.libs.json.JsString(o.value)
+  }
+  private val StringToValue: Map[String, <sig(type)>] = Map(
+    <type.values:{v|(<v.value.expr>, <camelcase(v.name.codesafe)>)}; separator=", ">
+  )
+  def all: Iterable[<sig(type)>] = StringToValue.values
+  def fromString(v: String): Option[<sig(type)>] = StringToValue.get(v)
+}
+>>
+
+// Declare an enumeration value case class
+decl_enum__value(v,type) ::= <<
+case object <camelcase(v.name.codesafe)> extends <sig(type)> {
+  override val value: String = <v.value.expr>
+}
+>>
+
+// Declare a case or the reads function for the given value
+decl_enum__reads_case(v) ::= <%
+case <lower(v.value.expr)> => play.api.libs.json.JsSuccess(<camelcase(v.name.codesafe)>)
+%>
+
+// Generate a JsError expression, including the possible values in the error message
+decl_enum__reads_error_default_case(type) ::= <%
+case _ => play.api.libs.json.JsError(play.api.libs.json.JsonValidationError(
+    "error.unknown.enum.literal",
+    "<sig(type)> (<type.values:{v|<v.value.raw>}; separator=", ">)"
+))
+%>
+
+
+//
+// Union : Instantiate an enum
+//
+// @param <EnumTypeArguments> type - The enum type that needs to be instantiated
+// @param <ValueArguments> val - The value for the enum
+//
+inst_enum(type,val) ::= <%
+<type.id>.
+    <! Enums *MUST* contain a value, so if they are missing, we will pick the first enum value !>
+    <if(val.null)>
+        <camelcase(first(type.values).name.codesafe)>
+    <else>
+        <camelcase(val.codesafe)>
+    <endif>
+%>

@@ -14,6 +14,7 @@ import sbt.Keys._
 object RamlGeneratorPlugin extends AutoPlugin {
   object autoImport {
     lazy val ramlDirectory = settingKey[File]("Base directory where the RAML types are defined in")
+    lazy val ramlTemplates = settingKey[File]( "Base directory where the StringTemplate sources are located" )
     lazy val ramlGenerate = taskKey[Seq[File]]("Generate the RAML files")
   }
   import autoImport._
@@ -21,8 +22,11 @@ object RamlGeneratorPlugin extends AutoPlugin {
     ramlDirectory := {
       baseDirectory.value / "docs" / "docs" / "rest-api" / "public" / "api" / "v2" / "types"
     },
+    ramlTemplates := {
+      baseDirectory.value / "src" / "main" / "typegen"
+    },
     ramlGenerate := {
-      generateDTG(ramlDirectory.value, sourceManaged.value, streams.value.log)
+      generateDTG(ramlDirectory.value, ramlTemplates.value, sourceManaged.value, streams.value.log)
     }
   ))
 
@@ -40,7 +44,7 @@ object RamlGeneratorPlugin extends AutoPlugin {
     * @param log The logger object to use for reporting status
     * @return Returns a list of the files generated
     */
-  def generateDTG(ramlDirectory: File, outputDir: File, log: Logger): Seq[File] = {
+  def generateDTG(ramlDirectory: File, templatesDir: File, outputDir: File, log: Logger): Seq[File] = {
 
     // Create the RAML front-end
     var frontendConfig = new FrontendConfig(ramlDirectory.getAbsolutePath)
@@ -49,7 +53,7 @@ object RamlGeneratorPlugin extends AutoPlugin {
     // Create and configure the StringTemplate back-end
     val backendConfig = new BackendConfig(outputDir.getAbsolutePath)
     val backend = new StringTemplateBackend(backendConfig)
-    backendConfig.setOption("templates", "/Users/icharala/Develop/dcos-type-generator/example/template-scala-2")
+    backendConfig.setOption("templates", templatesDir.getAbsolutePath)
 
     // Use a custom back-end consumer
     val backendConsumer = new FileBackendConsumerWithTracking(backendConfig)

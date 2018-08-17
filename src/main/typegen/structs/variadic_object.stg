@@ -1,0 +1,27 @@
+//
+// Signature of a variadic object type
+//
+// @param <VariadicObjectTypeArguments> type - The variadic object type that needs to be instantiated
+//
+sig_variadic_object(type) ::= "Map[String, <sig(type.itemType)>]"
+
+//
+// Compose the declaration expression for the given variadic_object
+//
+// @param <VariadicObjectTypeArguments> type - The variadic object type that needs to be instantiated
+//
+declare_variadic_object(type) ::= ""
+
+//
+// Object : Instantiate an variadic object (map)
+//
+// @param <VariadicObjectTypeArguments> type - The variadic object type that needs to be instantiated
+// @param <Map<String, ValueArguments>> val - An map of values for each property
+//
+inst_variadic_object(type,val) ::= <%
+<if(val.null)>
+    Map.empty
+<else>
+    <sig(type)>(<val.keys:{k|"<escape(k)>" -> <val.keys.(k)>}; separator=", ">)
+<endif>
+%>

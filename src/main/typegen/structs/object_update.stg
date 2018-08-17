@@ -1,0 +1,113 @@
+// Compose the declaration of the given object
+declare_update_object_pair(type,baseType) ::= <<
+/**
+ * The <type.id>Update case class
+ * <type.description>
+ *
+ <decl_upd_object__fielddesc(type)>
+ */
+case class <sig(type)>Update(
+  <type.properties:{p|<decl_upd_object__case_arg(p)>}; separator=",\n">
+) extends <baseType>
+
+object <sig(type)>Update {
+  import play.api.libs.json.Reads._
+  import play.api.libs.functional.syntax._
+
+  implicit object playJsonFormat extends play.api.libs.json.Format[<type.id>] {
+
+    /**
+     * De-serialization
+     */
+    def reads(json: play.api.libs.json.JsValue): play.api.libs.json.JsResult[<type.id>] = {
+      // Path extractors and validators for every field
+      <type.properties:{p|<decl_upd_object__read_val(p)>}>
+
+      // Collect errors from the path extractors and validators
+      val _errors = Seq(
+        <type.properties:{p|("<escape(p.name)>", <expr(p.name)>)}; separator=",\n">
+      ).collect({
+        case (field, e: play.api.libs.json.JsError) => e.repath(play.api.libs.json.JsPath.\(field))
+                                                        .asInstanceOf[play.api.libs.json.JsError]
+      })
+
+      // Return JsError if there were one or more validation errors, or a JsSuccess
+      // if the validation was successful.
+      if (_errors.nonEmpty) _errors.reduceOption[play.api.libs.json.JsError](_.++(_)).getOrElse(_errors.head)
+      else play.api.libs.json.JsSuccess(
+        <sig(type)>Update(
+          <type.properties:{p|<expr(p.name)>.get}; separator=",\n">
+        )
+      )
+    }
+
+    /**
+     * Serialization
+     */
+    def writes(o: <type.id>): play.api.libs.json.JsValue = {
+      // Collect values or defaults
+      <type.properties:{p|<decl_upd_object__write_val(p)>}>
+
+      // Compose JsObject
+      play.api.libs.json.JsObject(Seq(
+        <type.properties:{p|("<escape(p.name)>", <expr(p.name)>)}; separator=",\n">
+      ))
+    }
+
+    /**
+     * Default values
+     */
+    <type.properties:{p|<decl_upd_object__default_field(p)>}>
+
+  }
+}
+>>
+
+// Return the object field descriptions
+decl_upd_object__fielddesc(type) ::= <%
+  <type.properties:{p|* @param <p.name> <wrapcomment(p.type.description)>}; separator="\n">
+%>
+
+// Return the case class field and initializer
+decl_upd_object__case_arg(p) ::= <%
+  <expr(p.name)>: Option[<sig(p.type)>] = <inst_option(p.type.defaultValue)>
+%>
+
+// Return the definition of a default value field
+decl_upd_object__default_field(p) ::= <<
+val Default<capitalize(p.name)>: Option[<sig(p.type)>] = <inst_option(p.type.defaultValue)>
+
+>>
+
+// Return the val definition for reading a particular field
+decl_upd_object__read_val(prop) ::= <<
+val <expr(prop.name)> = json.\("<escape(prop.name)>")
+  .validateOpt[<sig(prop.type)>](play.api.libs.json.JsPath.read[<sig(prop.type)>]<decl_upd_object__read_val_validate(prop)>)
+
+>>
+
+decl_upd_object__read_val_validate(prop) ::= <<<\\>
+<if(prop.type.annotation.valueValidation)>(
+<prop.type.annotation.valueValidation:{validation|     <(DECL_OBJECT_READ_VALIDATOR.(validation.name))(prop.type,validation)>}; separator=" keepAnd \n">
+  )<endif>
+>>
+
+// Validator fragments
+DECL_OBJECT_READ_VALIDATOR ::= [
+    "minimum": "decl_upd_object__read_val__minimum",
+    "maximum": "decl_upd_object__read_val__maximum",
+    "minLength": "decl_upd_object__read_val__minLength",
+    "maxLength": "decl_upd_object__read_val__maxLength",
+    "pattern": "decl_upd_object__read_val__pattern"
+]
+decl_upd_object__read_val__minimum(type,validation) ::= <% min[<sig(type)>](<validation.value>) %>
+decl_upd_object__read_val__maximum(type,validation) ::= <% max[<sig(type)>](<validation.value>) %>
+decl_upd_object__read_val__minLength(type,validation) ::= <% minLength[<sig(type)>](<validation.value>) %>
+decl_upd_object__read_val__maxLength(type,validation) ::= <% maxLength[<sig(type)>](<validation.value>) %>
+decl_upd_object__read_val__pattern(type,validation) ::= <% pattern("<escape(validation.expression)>".r) %>
+
+// Return the val definition for writing a particular field
+decl_upd_object__write_val(prop) ::= <<
+val <expr(prop.name)> = play.api.libs.json.Json.toJson(o.<expr(prop.name)>)
+
+>>

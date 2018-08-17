@@ -1,0 +1,43 @@
+//
+// Signature of an array type
+//
+// @param <ArrayTypeArguments> type - The array type that needs to be instantiated
+//
+sig_array(type) ::= <%
+<if(type.annotation.uniqueItems)>
+    Set[<sig(type.itemType)>]
+<else>
+    scala.collection.immutable.Seq[<sig(type.itemType)>]
+<endif>
+%>
+
+
+//
+// Compose the declaration expression for the given array
+//
+// @param <ArrayTypeArguments> type - The array type that needs to be instantiated
+//
+declare_array(type) ::= ""
+
+
+//
+// Instantiate an array of values
+//
+// @param <ArrayTypeArguments> type - The array type that needs to be instantiated
+// @param <Array<ValueArguments>> val - An array of value expressions
+//
+inst_array(type,val) ::= <%
+<if(val.null)>
+    <if(type.annotation.uniqueItems)>
+        Set.empty
+    <else>
+        Nil
+    <endif>
+<else>
+    <if(type.annotation.uniqueItems)>
+        Set(<val:{v|<v.expr>}>)
+    <else>
+        scala.collection.immutable.Seq(<val:{v|<v.expr>}>)
+    <endif>
+<endif>
+%>

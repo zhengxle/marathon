@@ -1,0 +1,38 @@
+
+// Declare a scalar type
+declare_union__scalar_type(type,baseType) ::= <<
+case class <type.typeId>(value: <sig(type)>) extends <baseType>
+
+object <type.typeId> {
+  implicit object playJsonFormat extends play.api.libs.json.Format[<type.typeId>] {
+    def reads(json: play.api.libs.json.JsValue): play.api.libs.json.JsResult[<type.typeId>] = {
+      json.validate[<sig(type)>].map(<type.typeId>.apply)
+    }
+    def writes(o: <type.typeId>): play.api.libs.json.JsValue = {
+      play.api.libs.json.JsString(o.value)
+      <(UNION_SCALAR_WRITES_MAP.(type.storage.kind))()>
+    }
+  }
+}
+>>
+
+// Lookup table to the serialization function of scalar per storage type
+UNION_SCALAR_WRITES_MAP ::= [
+    "string": "declare_union__scalar_type__writes_string",
+    "binary": "declare_union__scalar_type__writes_string",
+    "integer": "declare_union__scalar_type__writes_number",
+    "number": "declare_union__scalar_type__writes_number",
+    "boolean": "declare_union__scalar_type__writes_boolean",
+    "datetime": "declare_union__scalar_type__writes_string",
+    "datetime_only": "declare_union__scalar_type__writes_string",
+    "date_ony": "declare_union__scalar_type__writes_string",
+    "time_only": "declare_union__scalar_type__writes_string",
+    "void": "declare_union__scalar_type__writes_null",
+    "any": "declare_union__scalar_type__writes_string"
+]
+
+// Per storage-type scalar serialization functions
+declare_union__scalar_type__writes_string() ::= ""
+declare_union__scalar_type__writes_number() ::= "play.api.libs.json.JsNumber(o.value)"
+declare_union__scalar_type__writes_boolean() ::= "play.api.libs.json.JsBoolean(o.value)"
+declare_union__scalar_type__writes_null() ::= "play.api.libs.json.JsNull"

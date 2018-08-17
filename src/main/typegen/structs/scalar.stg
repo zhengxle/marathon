@@ -1,0 +1,41 @@
+//
+// Scalar signature
+//
+// The scalar signature is just the scala type name of the storage type. Therefore
+// we are going to use the values of a look-up table, using the storage kind as key.
+//
+// @param <ScalarTypeArguments> type - The scalar type that needs to be instantiated
+//
+sig_scalar(type) ::= "<SCALAR_SIG_MAP.(type.storage)>"
+
+// Lookup table for the storage types to scala type names
+SCALAR_SIG_MAP ::= [
+    "any": "Object",
+    "binary": "byte[]",
+    "boolean": "Boolean",
+    "datetime": "java.time.OffsetDateTime",
+    "date_only": "java.time.OffsetDateTime",
+    "time_only": "java.time.OffsetDateTime",
+    "datetime_only": "java.time.OffsetDateTime",
+    "integer": "Int",
+    "number": "Double",
+    "string": "String",
+    "void": "None"
+]
+
+
+//
+// Compose the declaration of a scalar (not used in most of the languages)
+//
+// @param <ObjectTypeArguments> type - The object type that needs to be instantiated
+//
+declare_scalar(type) ::= ""
+
+
+//
+// Instantiate a scalar
+//
+// @param <ScalarTypeArguments> type - The scalar type that needs to be instantiated
+// @param <ValueArguments> val - The value for the scalar
+//
+inst_scalar(type,val) ::= "<val.expr>"

@@ -1,0 +1,79 @@
+import "union/union_scalar.stg"
+
+//
+// Signature of a union type
+//
+// @param <UnionTypeArguments> type - The variadic union type that needs to be instantiated
+//
+sig_union(type) ::= "<type.id>"
+
+
+//
+// Compose the declaration expression for the given union
+//
+// @param <UnionTypeArguments> type - The variadic union type that needs to be instantiated
+//
+declare_union(type) ::= <<
+// Declared in <type.scope.desc>
+/**
+ * Union for <type.id>
+ */
+trait <sig(type)> extends RamlGenerated with Product with Serializable
+
+<! Declare the objects now (they are implicitly not declared in the object scope) !>
+<type.unionTypes:{uType|<declare_union__type(uType,sig(type))>}>
+
+object <sig(type)> {
+  implicit object playJsonFormat extends play.api.libs.json.Format[<sig(type)>] {
+    def reads(json: play.api.libs.json.JsValue): play.api.libs.json.JsResult[<sig(type)>] = {
+      <type.unionTypes:{uType|<declare_union__reads_validate_case(uType)>}; separator=".orElse("><\\>
+      <type.unionTypes:{uType|<\ >}; separator=")">
+    }
+    def writes(o: <sig(type)>): play.api.libs.json.JsValue = {
+      o match {
+        <type.unionTypes:{uType|<declare_union__writes_case(uType)>}; separator="\n">
+      }
+    }
+  }
+}
+>>
+
+// Declare the .validate read attempt
+declare_union__reads_validate_case(type) ::= "json.validate[<sig(type)>]"
+
+// Declare the write case
+declare_union__writes_case(type) ::= <%
+<if(type.isScalar)>
+case f: <type.typeId> => play.api.libs.json.Json.toJson(f)(<type.typeId>.playJsonFormat)
+<else>
+case f: <sig(type)> => play.api.libs.json.Json.toJson(f)(<sig(type)>.playJsonFormat)
+<endif>
+%>
+
+// Declare an object or a scalar type
+declare_union__type(type,baseType) ::= <%
+/* Da id=<type.id>, typeId=<type.id>, type=<type.kind> */<\n>
+<if(type.isScalar)>
+    <declare_union__scalar_type(type,baseType)>
+<elseif(type.isEnum)>
+    <declare_enum_pair(type,baseType)>
+<else>
+    <declare_object_pair(type,baseType)>
+<endif>
+%>
+
+
+//
+// Union : Instantiate a union
+//
+// @param <UnionTypeArguments> type - The union type that needs to be instantiated
+// @param <ValueArguments> val - The union value as the evaluated object instantiation expression
+//
+inst_union(type,val) ::= <%
+<if(val.null)>
+    null <! If for some reason we could not find out which was the base type where
+            this union value comes from, we should use `null` as default value !>
+<else>
+    <val> <! Expands to the `inst_object` expression for the correct type !>
+<endif>
+%>

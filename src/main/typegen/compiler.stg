@@ -1,0 +1,79 @@
+//
+// `sig` template : Compose signature expressions
+//
+import "fragments/sig.stg"
+
+//
+// `valueof` template : Compose scalar-type value expression
+//
+import "fragments/valueof.stg"
+
+//
+// `inst` template : Compose structural-type instantiation expressions
+//
+import "fragments/inst.stg"
+
+//
+// `declare` template : Compose the declaration statement for the type
+//
+import "fragments/declare.stg"
+
+//
+// `trait`, `option_trait`, `option_value` templates : Scala-specific utilities
+//
+import "fragments/util/scala.stg"
+
+//
+// `expr` : Calculate literal expression, sanitizing reserved keywords
+//
+import "fragments/util/sanitize.stg"
+
+//
+// Structure-specific implementation of the following templates:
+//
+// - `*_declare` : Type-specific declaration
+// - `*_inst` : Type-specific by-value instantiation expression
+// - `*_serialize` : Type-specific serialize expression
+// - `*_deserialize` : Type-specific de-serialize expression
+// - `*_validate` : Type-specific validate expression
+//
+import "structs/scalar.stg"
+import "structs/array.stg"
+import "structs/enum.stg"
+import "structs/object.stg"
+import "structs/union.stg"
+import "structs/variadic_object.stg"
+
+//
+// Messages and other configurable lists
+//
+import "fragments/messages/validation.stg"
+
+// ===========================================
+//  Entrypoint to the StringTemplate Compiler
+// ===========================================
+
+//
+// The contents of the type file
+//
+// If this template evaluates to an empty string no output will be generated.
+// This also means that the _pre and _post templates won't be called neither.
+//
+contents(scope) ::= <<
+<declare(scope.defaultType)>
+
+<scope.scopeTypes:{type|// Declare <type.id><\n><declare(type)>}>
+>>
+
+//
+// Preamble of every file, when contents are non-empty
+//
+contents_pre(scope) ::= <<
+package mesosphere.marathon
+package raml
+
+import java.time.OffsetDateTime
+import play.api.libs.json._
+<\n>
+>>
+

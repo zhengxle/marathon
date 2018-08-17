@@ -1,0 +1,10 @@
+
+//
+// This file contains a configurable entry point to all validation messages,
+// used by the de-serialization and validation fragments
+//
+
+ERR_NOTOBJECT()         ::= "Expecting an object"
+ERR_NOTSTRING()         ::= "Expecting a string"
+ERR_MISSING(name)       ::= "Missing required property '<name>'"
+ERR_NOTONEOF(values)    ::= "Expecting one of: <values:{v|<v.raw>}; separator=\", \">"
