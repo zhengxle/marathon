@@ -1,4 +1,5 @@
 resolvers ++= Seq(
+  Resolver.mavenLocal,
   Resolver.typesafeRepo("releases"),
   Resolver.sonatypeRepo("releases"),
   Resolver.sonatypeRepo("snapshots"),
@@ -22,9 +23,7 @@ addSbtPlugin("com.thesamet" % "sbt-protoc" % "0.99.12")
 // Plugin dependency hell got you down?
 // Run sbt inside of `./project` and inspect dependencies using the coursierDependencyInverseTree command
 libraryDependencies ++= Seq(
-  /* 1.0.4 and later versions cause the raml generator to fail; since we are likely moving to the new dcos type
-   * generator, we leave this behind. */
-  "org.raml" % "raml-parser-2" % "1.0.3",
+  "io.mesosphere.types" % "dtg" % "1.0-SNAPSHOT",
   "com.eed3si9n" %% "treehugger" % "0.4.3",
   "org.slf4j" % "slf4j-nop" % "1.7.25",
   "org.vafer" % "jdeb" % "1.5" artifacts Artifact("jdeb", "jar", "jar"),
