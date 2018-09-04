@@ -358,7 +358,7 @@ def is_enterprise_cli_package_installed():
     try:
         result_json = json.loads(stdout)
     except JSONDecodeError as error:
-        raise DCOSException('Could not parse: "{}"'.format(stdout))(error)
+        raise DCOSException('Could not parse: "{}": {}'.format(stdout, error))
     return any(cmd['name'] == 'dcos-enterprise-cli' for cmd in result_json)
 
 
