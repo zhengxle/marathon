@@ -25,6 +25,7 @@ from shakedown import errors, dcos_version_less_than, marthon_version_less_than,
 from shakedown.clients import marathon
 from fixtures import sse_events, wait_for_marathon_and_cleanup, user_billy, docker_ipv6_network_fixture, archive_sandboxes # NOQA F401
 from matcher import assert_that, eventually
+from precisely import is_
 
 # the following lines essentially do:
 #     from dcos_service_marathon_tests import test_*
@@ -417,8 +418,9 @@ def test_marathon_backup_and_check_apps(marathon_service_name):
 def test_private_repository_mesos_app():
     """Deploys an app with a private Docker image, using Mesos containerizer."""
 
-    assert_that(True, eventually(common.could_install_enterprice_cli(),
-                                 retry_on_exception=common.ignore_other_exception(common.InstallException)))
+    assert_that(lambda: common.could_install_enterprise_cli(),
+                eventually(is_(True),
+                retry_on_exception=common.ignore_other_exceptions(common.InstallException)))
 
     username = os.environ['DOCKER_HUB_USERNAME']
     password = os.environ['DOCKER_HUB_PASSWORD']
@@ -792,8 +794,9 @@ def test_pod_file_based_secret(secret_fixture):
 
 @pytest.fixture(scope="function")
 def secret_fixture():
-    assert_that(True, eventually(common.could_install_enterprice_cli(),
-                                 retry_on_exception=common.ignore_other_exception(common.InstallException)))
+    assert_that(lambda: common.could_install_enterprise_cli(),
+                eventually(is_(True),
+                retry_on_exception=common.ignore_other_exceptions(common.InstallException)))
 
     secret_name = '/mysecret'
     secret_value = 'super_secret_password'

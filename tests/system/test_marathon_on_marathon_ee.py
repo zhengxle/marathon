@@ -15,6 +15,7 @@ from shakedown import http, marathon
 from urllib.parse import urljoin
 from utils import get_resource
 from matcher import assert_that, eventually
+from precisely import is_
 
 
 MOM_EE_NAME = 'marathon-user-ee'
@@ -150,8 +151,9 @@ def simple_sleep_app(name):
 
 
 def ensure_prerequisites_installed():
-    assert_that(True, eventually(common.could_install_enterprice_cli(),
-                                 retry_on_exception=common.ignore_other_exception(common.InstallException)))
+    assert_that(lambda: common.could_install_enterprise_cli(),
+                eventually(is_(True),
+                retry_on_exception=common.ignore_other_exceptions(common.InstallException)))
 
 
 def ensure_service_account():
