@@ -21,6 +21,7 @@ import mesosphere.marathon.core.appinfo.{PodSelector, PodStatusService, Selector
 import mesosphere.marathon.core.event._
 import mesosphere.marathon.core.instance.Instance
 import mesosphere.marathon.core.pod.{PodDefinition, PodManager}
+import mesosphere.marathon.core.storage.repository.RepositoryConstants
 import mesosphere.marathon.plugin.auth._
 import mesosphere.marathon.raml.{Pod, Raml}
 import mesosphere.marathon.state.{PathId, Timestamp, VersionInfo}
@@ -250,7 +251,7 @@ class PodsResource @Inject() (
   @GET
   @Path("::status")
   def allStatus(@Context req: HttpServletRequest): Response = authenticated(req) { implicit identity =>
-    val future = Source(podSystem.ids()).mapAsync(Int.MaxValue) { id =>
+    val future = Source(podSystem.ids()).mapAsync(RepositoryConstants.maxConcurrency) { id =>
       podStatusService.selectPodStatus(id, authzSelector)
     }.filter(_.isDefined).map(_.get).runWith(Sink.seq)
 
@@ -262,6 +263,7 @@ class PodsResource @Inject() (
   def killInstance(
     @PathParam("id") idOrig: String,
     @PathParam("instanceId") instanceId: String,
+    @DefaultValue("false")@QueryParam("wipe") wipe: Boolean,
     @Context req: HttpServletRequest,
     @Suspended asyncResponse: AsyncResponse): Unit = sendResponse(asyncResponse) {
     async {
@@ -277,7 +279,7 @@ class PodsResource @Inject() (
       validateOrThrow(id)
       validateOrThrow(instanceId)
       val parsedInstanceId = Instance.Id.fromIdString(instanceId)
-      val instances = await(taskKiller.kill(id, _.filter(_.instanceId == parsedInstanceId)))
+      val instances = await(taskKiller.kill(id, _.filter(_.instanceId == parsedInstanceId), wipe))
       instances.headOption.fold(unknownTask(instanceId))(instance => ok(jsonString(instance)))
     }
   }
@@ -286,6 +288,7 @@ class PodsResource @Inject() (
   @Path("""{id:.+}::instances""")
   def killInstances(
     @PathParam("id") idOrig: String,
+    @DefaultValue("false")@QueryParam("wipe") wipe: Boolean,
     body: Array[Byte],
     @Context req: HttpServletRequest,
     @Suspended asyncResponse: AsyncResponse): Unit = sendResponse(asyncResponse) {
@@ -308,7 +311,7 @@ class PodsResource @Inject() (
       def toKill(instances: Seq[Instance]): Seq[Instance] = {
         instances.filter(instance => instancesDesired.contains(instance.instanceId))
       }
-      val instances = await(taskKiller.kill(id, toKill))
+      val instances = await(taskKiller.kill(id, toKill, wipe))
       ok(Json.toJson(instances))
     }
   }

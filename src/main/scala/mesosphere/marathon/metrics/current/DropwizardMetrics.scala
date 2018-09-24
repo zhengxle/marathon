@@ -12,10 +12,14 @@ import com.github.rollingmetrics.histogram.{HdrBuilder, OverflowResolver}
 import kamon.metric.instrument.{Time, UnitOfMeasurement => KamonUnitOfMeasurement}
 import mesosphere.marathon.metrics.deprecated.MetricPrefix
 import mesosphere.marathon.metrics.dummy.DummyMetrics
-import mesosphere.marathon.metrics.{ClosureGauge, Counter, Gauge, HistogramTimer, Metrics, MetricsConf, MinMaxCounter, SettableGauge, Timer, TimerAdapter}
+import mesosphere.marathon.metrics.{ClosureGauge, Counter, Gauge, HistogramTimer, Meter, Metrics, MetricsConf, MinMaxCounter, SettableGauge, Timer, TimerAdapter}
 import mesosphere.marathon.metrics.current.{UnitOfMeasurement => DropwizardUnitOfMeasurement}
 
+import scala.util.matching.Regex
+
 class DropwizardMetrics(metricsConf: MetricsConf, registry: MetricRegistry) extends Metrics {
+  import DropwizardMetrics.constructName
+
   override def deprecatedCounter(prefix: MetricPrefix, `class`: Class[_], metricName: String,
     tags: Map[String, String] = Map.empty,
     unit: KamonUnitOfMeasurement = KamonUnitOfMeasurement.Unknown): Counter =
@@ -44,6 +48,7 @@ class DropwizardMetrics(metricsConf: MetricsConf, registry: MetricRegistry) exte
   override def deprecatedTimer(metricName: String): Timer = DummyMetrics.deprecatedTimer(metricName)
 
   private val namePrefix = metricsConf.metricsNamePrefix()
+  private val histogramReservoirHighestTrackableValue = metricsConf.metricsHistogramReservoirHighestTrackableValue()
   private val histogramReservoirSignificantDigits = metricsConf.metricsHistogramReservoirSignificantDigits()
   private val histogramReservoirResetPeriodically = metricsConf.metricsHistogramReservoirResetPeriodically()
   private val histogramReservoirResettingIntervalMs = metricsConf.metricsHistogramReservoirResettingIntervalMs()
@@ -54,7 +59,7 @@ class DropwizardMetrics(metricsConf: MetricsConf, registry: MetricRegistry) exte
     override def increment(times: Long): Unit = counter.inc(times)
   }
   override def counter(name: String, unit: DropwizardUnitOfMeasurement = DropwizardUnitOfMeasurement.None): Counter = {
-    registry.counter(constructName(name, "counter", unit))
+    registry.counter(constructName(namePrefix, name, "counter", unit))
   }
 
   override def closureGauge[N](name: String, fn: () => N,
@@ -62,7 +67,7 @@ class DropwizardMetrics(metricsConf: MetricsConf, registry: MetricRegistry) exte
     class DropwizardClosureGauge(val name: String) extends ClosureGauge {
       registry.gauge(name, () => () => fn())
     }
-    new DropwizardClosureGauge(constructName(name, "gauge", unit))
+    new DropwizardClosureGauge(constructName(namePrefix, name, "gauge", unit))
   }
 
   class DropwizardSettableGauge(val name: String) extends SettableGauge {
@@ -75,12 +80,19 @@ class DropwizardMetrics(metricsConf: MetricsConf, registry: MetricRegistry) exte
     override def setValue(value: Long): Unit = register.set(value)
   }
   override def gauge(name: String, unit: DropwizardUnitOfMeasurement = DropwizardUnitOfMeasurement.None): Gauge = {
-    new DropwizardSettableGauge(constructName(name, "gauge", unit))
+    new DropwizardSettableGauge(constructName(namePrefix, name, "gauge", unit))
   }
   override def settableGauge(
     name: String,
     unit: DropwizardUnitOfMeasurement = DropwizardUnitOfMeasurement.None): SettableGauge = {
-    new DropwizardSettableGauge(constructName(name, "gauge", unit))
+    new DropwizardSettableGauge(constructName(namePrefix, name, "gauge", unit))
+  }
+
+  implicit class DropwizardMeter(val meter: codahale.metrics.Meter) extends Meter {
+    override def mark(): Unit = meter.mark()
+  }
+  override def meter(name: String): Meter = {
+    registry.meter(constructName(namePrefix, name, "meter", DropwizardUnitOfMeasurement.None))
   }
 
   implicit class DropwizardTimerAdapter(val timer: metrics.Timer) extends TimerAdapter {
@@ -88,13 +100,13 @@ class DropwizardMetrics(metricsConf: MetricsConf, registry: MetricRegistry) exte
   }
 
   override def timer(name: String): Timer = {
-    val effectiveName = constructName(name, "timer", DropwizardUnitOfMeasurement.Time)
+    val effectiveName = constructName(namePrefix, name, "timer", DropwizardUnitOfMeasurement.Time)
 
     def makeTimer(): metrics.Timer = {
       val reservoirBuilder = new HdrBuilder()
         .withSignificantDigits(histogramReservoirSignificantDigits)
         .withLowestDiscernibleValue(1)
-        .withHighestTrackableValue(Long.MaxValue, OverflowResolver.REDUCE_TO_HIGHEST_TRACKABLE)
+        .withHighestTrackableValue(histogramReservoirHighestTrackableValue, OverflowResolver.REDUCE_TO_HIGHEST_TRACKABLE)
       if (histogramReservoirResetPeriodically) {
         if (histogramReservoirResettingChunks == 0)
           reservoirBuilder.resetReservoirPeriodically(Duration.ofMillis(histogramReservoirResettingIntervalMs))
@@ -108,15 +120,18 @@ class DropwizardMetrics(metricsConf: MetricsConf, registry: MetricRegistry) exte
 
     HistogramTimer(registry.timer(effectiveName, () => makeTimer()))
   }
+}
 
-  private val validNameRegex = "^[a-zA-Z0-9\\-\\.]+$".r
-  private def constructName(name: String, `type`: String, unit: DropwizardUnitOfMeasurement): String = {
+object DropwizardMetrics {
+  val validNameRegex: Regex = "^[a-zA-Z0-9\\-\\.]+$".r
+
+  def constructName(prefix: String, name: String, `type`: String, unit: DropwizardUnitOfMeasurement): String = {
     val unitSuffix = unit match {
       case DropwizardUnitOfMeasurement.None => ""
       case DropwizardUnitOfMeasurement.Time => ".seconds"
       case DropwizardUnitOfMeasurement.Memory => ".bytes"
     }
-    val constructedName = s"$namePrefix.$name.${`type`}$unitSuffix"
+    val constructedName = s"$prefix.$name.${`type`}$unitSuffix"
     constructedName match {
       case validNameRegex() =>
       case _ => throw new IllegalArgumentException(s"$name is not a valid metric name")

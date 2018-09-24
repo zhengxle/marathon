@@ -39,7 +39,7 @@ function exit-with-cluster-launch-error {
     echo "$1"
     create-junit-xml "dcos-launch" "cluster.create" "$1"
     pipenv run dcos-launch -i "$INFO_PATH" delete
-    "$ROOT_PATH/ci/dataDogClient.sc" "marathon.build.si.$VARIANT.cluster_launch.failure" 1
+    "$ROOT_PATH/ci/dataDogClient.sc" "marathon.build.$JOB_NAME_SANITIZED.cluster_launch.failure" 1
     exit 0
 }
 
@@ -60,29 +60,36 @@ function download-diagnostics-bundle {
 source "$ROOT_PATH/ci/si_install_deps.sh"
 
 # Launch cluster and run tests if launch was successful.
-CLI_TEST_SSH_KEY="$(pwd)/$DEPLOYMENT_NAME.pem"
-export CLI_TEST_SSH_KEY
+SHAKEDOWN_SSH_KEY_FILE="$(pwd)/$DEPLOYMENT_NAME.pem"
+export SHAKEDOWN_SSH_KEY_FILE
+
+SHAKEDOWN_SSH_USER="centos"
+export SHAKEDOWN_SSH_USER
 
 if [ "$VARIANT" == "strict" ]; then
   DCOS_URL="https://$( "$ROOT_PATH/ci/launch_cluster.sh" "$CHANNEL" "$VARIANT" "$DEPLOYMENT_NAME" | tail -1 )"
-  wget --no-check-certificate -O fixtures/dcos-ca.crt "$DCOS_URL/ca/dcos-ca.crt"
+  DCOS_SSL_VERIFY="fixtures/dcos-ca.crt"
+  wget --no-check-certificate -O "$DCOS_SSL_VERIFY" "$DCOS_URL/ca/dcos-ca.crt"
+  export DCOS_SSL_VERIFY
 else
   DCOS_URL="http://$( "$ROOT_PATH/ci/launch_cluster.sh" "$CHANNEL" "$VARIANT" "$DEPLOYMENT_NAME" | tail -1 )"
+  DCOS_SSL_VERIFY="false"
+  export DCOS_SSL_VERIFY
 fi
 
 CLUSTER_LAUNCH_CODE=$?
 export DCOS_URL
 case $CLUSTER_LAUNCH_CODE in
   0)
-      "$ROOT_PATH/ci/dataDogClient.sc" "marathon.build.si.$VARIANT.cluster_launch.success" 1
+      "$ROOT_PATH/ci/dataDogClient.sc" "marathon.build.$JOB_NAME_SANITIZED.cluster_launch.success" 1
       cp -f "$DOT_SHAKEDOWN" "$HOME/.shakedown"
       timeout --preserve-status -s KILL 2h make test
       SI_CODE=$?
       if [ ${SI_CODE} -gt 0 ]; then
-        "$ROOT_PATH/ci/dataDogClient.sc" "marathon.build.si.$VARIANT.failure" 1
+        "$ROOT_PATH/ci/dataDogClient.sc" "marathon.build.$JOB_NAME_SANITIZED.failure" 1
         download-diagnostics-bundle
       else
-        "$ROOT_PATH/ci/dataDogClient.sc" "marathon.build.si.$VARIANT.success" 1
+        "$ROOT_PATH/ci/dataDogClient.sc" "marathon.build.$JOB_NAME_SANITIZED.success" 1
       fi
       pipenv run dcos-launch -i "$INFO_PATH" delete || true
       exit "$SI_CODE" # Propagate return code.
